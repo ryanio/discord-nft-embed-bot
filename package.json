@@ -1,0 +1,22 @@
+{
+  "name": "discord-nft-bot",
+  "description": "A discord.js bot that listens to messages in channels and replies with items from an nft collection.",
+  "author": "Ryan Ghods <ryan@ryanio.com>",
+  "license": "CC0-1.0",
+  "engines": {
+    "node": "16.x"
+  },
+  "scripts": {
+    "start": "yarn && npx ts-node index.ts"
+  },
+  "dependencies": {
+    "discord.js": "^13.3.1",
+    "ethers": "^5.5.2",
+    "node-fetch": "^2.6.6"
+  },
+  "devDependencies": {
+    "prettier": "^2.5.1",
+    "ts-node": "^10.4.0",
+    "typescript": "^4.5.4"
+  }
+}
