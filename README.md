@@ -64,3 +64,7 @@ Please define these env variables for the repostitory to work as intended.
 To get your `DISCORD_TOKEN`, create an app at [https://discord.com/developers/applications](https://discord.com/developers/applications), set up the bot and permissions (Read/Write messages), and have it join your server. The bot will listen and reply to messages in all of the channels it has access to.
 
 The `DISCORD_TOKEN` looks like this: `OTE5MzY5ODIyNzEyNzc5NzUz.YBuz2g.x1rGh4zx_XlSNj43oreukvlwsfw`
+
+### Run
+
+`yarn start`
