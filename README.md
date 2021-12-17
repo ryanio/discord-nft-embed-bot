@@ -31,6 +31,15 @@ Replied with #2248
 ------------------------------------------------------------
 ```
 
+Provided metadata fields:
+
+- Owner
+- Last sale
+- Listed for
+- Highest offer
+
+You can add properties of the specific nft by formatting `asset.traits` and adding to the `fields` array.
+
 ## Setup
 
 ### Env
