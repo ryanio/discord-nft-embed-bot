@@ -25,7 +25,7 @@ const openseaAsset = (tokenId: number) =>
   `${openseaAPI}asset/${TOKEN_ADDRESS}/${tokenId}/`
 const openseaUser = (username: string) => `${openseaAPI}user/${username}/`
 const permalink = (tokenId: number) =>
-  `${openseaAPI}${TOKEN_ADDRESS}/${tokenId}`
+  `https://opensea.io/assets/${TOKEN_ADDRESS}/${tokenId}`
 
 const shortAddr = (addr: string) =>
   addr.slice(0, 7) + '...' + addr.slice(15, 20)
