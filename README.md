@@ -38,13 +38,13 @@ Provided metadata fields:
 - Listed for
 - Highest offer
 
-You can add properties of the specific nft by formatting `asset.traits` and adding to the `fields` array.
+You can add specific properties of the nft by formatting `asset.traits` and adding to the `fields` array.
 
 ## Setup
 
 ### Env
 
-Please define these env variables for the repostitory to work as intended.
+Please define these env variables for the repository to work as intended.
 
 #### APIs
 
