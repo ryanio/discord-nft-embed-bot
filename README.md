@@ -6,7 +6,7 @@ Originally developed for [@dutchtide](https://twitter.com/dutchtide)'s [𝕄𝕚
 
 An OpenSea API key is needed - [request one here](https://docs.opensea.io/reference/request-an-api-key).
 
-## Supported syntax:
+## Supported syntax
 
 - `#1234`
 - `#ensname.eth`
@@ -44,7 +44,7 @@ You can add specific properties of the nft by formatting `asset.traits` and addi
 
 ### Env
 
-Please define these env variables for the repository to work as intended.
+Please define the following env variables for the repository to work as intended.
 
 #### APIs
 
@@ -52,7 +52,7 @@ Please define these env variables for the repository to work as intended.
 - `OPENSEA_API_TOKEN`
 - `INFURA_PROJECT_ID`
 
-#### Project specific
+#### Project-specific
 
 - `TOKEN_NAME`
 - `TOKEN_ADDRESS`
