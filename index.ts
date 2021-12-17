@@ -30,10 +30,7 @@ const permalink = (tokenId: number) =>
 const shortAddr = (addr: string) =>
   addr.slice(0, 7) + '...' + addr.slice(15, 20)
 
-const randomTokenId = (
-  min = Number(MIN_TOKEN_ID),
-  max = Number(MAX_TOKEN_ID)
-) => {
+const random = (min = Number(MIN_TOKEN_ID), max = Number(MAX_TOKEN_ID)) => {
   // min and max included
   return Math.floor(Math.random() * (max - min + 1) + min)
 }
@@ -76,7 +73,7 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log): Promise<any> => {
   const params = new URLSearchParams({
     asset_contract_address: TOKEN_ADDRESS,
     owner: addr,
-    limit: 1,
+    limit: 50,
   } as any)
   const response = await fetch(`${openseaAssets}?${params}`, openseaFetchOpts)
   const { assets } = await response.json()
@@ -84,7 +81,8 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log): Promise<any> => {
     log.push(`Skipping, no tokens found for address ${addr}`)
     return
   }
-  return Number(assets[0].token_id)
+  const rand = random(0, assets.length - 1)
+  return Number(assets[rand].token_id)
 }
 
 const generateEmbed = async (tokenId: number, log: Log) => {
@@ -209,7 +207,7 @@ async function main() {
       const id = match[1]
       if (id === 'random') {
         // matches: 'random'
-        matches.push(randomTokenId())
+        matches.push(random())
       } else if (/^[0-9]+/.test(id)) {
         // matches: number digits
         matches.push(id)
