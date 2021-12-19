@@ -258,9 +258,11 @@ async function main() {
     } catch (error) {
       log.push(`Error: ${error}`)
     }
-    log.push(separator)
-    for (const l of log) {
-      console.log(l)
+    if (log.length > 0) {
+      log.push(separator)
+      for (const l of log) {
+        console.log(l)
+      }
     }
   })
 
