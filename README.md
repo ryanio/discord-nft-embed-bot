@@ -61,7 +61,7 @@ Please define the following env variables for the repository to work as intended
 
 ### Bot
 
-To get your `DISCORD_TOKEN`, create an app at [https://discord.com/developers/applications](https://discord.com/developers/applications), set up the bot and permissions (Read/Write messages), and have it join your server. The bot will listen and reply to messages in all of the channels it has access to.
+To get your `DISCORD_TOKEN`, [create a Discord app](https://discord.com/developers/applications). Create a bot with the permissions: `Read Messages/View Channels`, `Send Messages`, and `Embed Links`. Then [add your bot to your server](https://discordjs.guide/preparations/adding-your-bot-to-servers.html#bot-invite-links). The bot will listen and reply to messages in all of the channels it has access to.
 
 The `DISCORD_TOKEN` looks like this: `OTE5MzY5ODIyNzEyNzc5NzUz.YBuz2g.x1rGh4zx_XlSNj43oreukvlwsfw`
 
