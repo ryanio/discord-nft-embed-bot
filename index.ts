@@ -17,25 +17,26 @@ const {
 } = process.env
 
 /**
- * Utils
+ * Returns a shortened version of a full ethereum address
+ * (e.g. 0x38a16...c7eb3)
  */
 const shortAddr = (addr: string) =>
   addr.slice(0, 7) + '...' + addr.slice(15, 20)
 
-const random = (min = Number(MIN_TOKEN_ID), max = Number(MAX_TOKEN_ID)) => {
-  // min and max included
-  return Math.floor(Math.random() * (max - min + 1) + min)
-}
+/**
+ * Returns a random number specified by params, min and mix included.
+ */
+const random = (min = Number(MIN_TOKEN_ID), max = Number(MAX_TOKEN_ID)) =>
+  Math.floor(Math.random() * (max - min + 1) + min)
 
 /**
  * OpenSea
  */
-const openseaFetchOpts = {
-  method: 'GET',
-  headers: { Accept: 'application/json', 'X-API-KEY': OPENSEA_API_TOKEN },
-}
-
 const opensea = {
+  getOpts: {
+    method: 'GET',
+    headers: { Accept: 'application/json', 'X-API-KEY': OPENSEA_API_TOKEN },
+  } as any,
   api: 'https://api.opensea.io/api/v1/',
   collection: `https://opensea.io/assets/${TOKEN_ADDRESS}`,
   assets: (tokenId: number) => `${opensea.api}assets/`,
@@ -47,7 +48,7 @@ const opensea = {
 
 const addrForOpenseaUsername = async (username: string, log: Log) => {
   log.push(`Fetching OpenSea username: ${username}`)
-  const response = await fetch(opensea.user(username), openseaFetchOpts as any)
+  const response = await fetch(opensea.user(username), opensea.getOpts)
   const user = await response.json()
   if (!user.account?.address) {
     log.push('Skipping, no user found')
@@ -61,7 +62,7 @@ const addrForOpenseaUsername = async (username: string, log: Log) => {
  */
 const fetchAsset = async (tokenId: number, log: Log): Promise<any> => {
   log.push(`Fetching #${tokenId}`)
-  const response = await fetch(opensea.asset(tokenId), openseaFetchOpts as any)
+  const response = await fetch(opensea.asset(tokenId), opensea.getOpts)
   const asset = await response.json()
   if (!asset.token_id) {
     log.push('Skipping, no asset found')
@@ -76,10 +77,7 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
     owner: addr,
     limit: 50,
   } as any)
-  const response = await fetch(
-    `${opensea.assets}?${params}`,
-    openseaFetchOpts as any
-  )
+  const response = await fetch(`${opensea.assets}?${params}`, opensea.getOpts)
   const { assets } = await response.json()
   if (!assets || assets.length === 0) {
     log.push(`Skipping, no tokens found for address ${addr}`)
@@ -209,7 +207,7 @@ const matches = async (message: any, log: Log) => {
   if (match !== null) {
     log.push(
       `Message from ${message.author.username} in #${
-        (message.channel as any)?.name ?? message.channelId
+        message.channel?.name ?? message.channelId
       }:\n> ${message.content}`
     )
   }
