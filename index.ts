@@ -16,19 +16,9 @@ const {
   MAX_TOKEN_ID,
 } = process.env
 
-const openseaFetchOpts = {
-  method: 'GET',
-  headers: { Accept: 'application/json', 'X-API-KEY': OPENSEA_API_TOKEN },
-}
-
-const openseaAPI = 'https://api.opensea.io/api/v1/'
-const openseaAssets = `${openseaAPI}assets/`
-const openseaAsset = (tokenId: number) =>
-  `${openseaAPI}asset/${TOKEN_ADDRESS}/${tokenId}/`
-const openseaUser = (username: string) => `${openseaAPI}user/${username}/`
-const permalink = (tokenId: number) =>
-  `https://opensea.io/assets/${TOKEN_ADDRESS}/${tokenId}`
-
+/**
+ * Utils
+ */
 const shortAddr = (addr: string) =>
   addr.slice(0, 7) + '...' + addr.slice(15, 20)
 
@@ -37,36 +27,46 @@ const random = (min = Number(MIN_TOKEN_ID), max = Number(MAX_TOKEN_ID)) => {
   return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
-const provider = new ethers.providers.InfuraProvider(
-  'mainnet',
-  INFURA_PROJECT_ID
-)
-
-const ensName = async (name: string, log: Log) => {
-  log.push(`Fetching ens name: ${name}`)
-  const result = await provider.resolveName(name)
-  if (!result) {
-    log.push(`Skipping, no address found for ${name}`)
-    return
-  }
-  return result
+/**
+ * OpenSea
+ */
+const openseaFetchOpts = {
+  method: 'GET',
+  headers: { Accept: 'application/json', 'X-API-KEY': OPENSEA_API_TOKEN },
 }
 
-const openseaName = async (username: string, log: Log) => {
+const opensea = {
+  api: 'https://api.opensea.io/api/v1/',
+  collection: `https://opensea.io/assets/${TOKEN_ADDRESS}`,
+  assets: (tokenId: number) => `${opensea.api}assets/`,
+  asset: (tokenId: number) =>
+    `${opensea.api}asset/${TOKEN_ADDRESS}/${tokenId}/`,
+  user: (username: string) => `${opensea.api}user/${username}/`,
+  permalink: (tokenId: number) => `${opensea.collection}/${tokenId}`,
+}
+
+const addrForOpenseaUsername = async (username: string, log: Log) => {
   log.push(`Fetching OpenSea username: ${username}`)
-  const response = await fetch(openseaUser(username), openseaFetchOpts as any)
+  const response = await fetch(opensea.user(username), openseaFetchOpts as any)
   const user = await response.json()
-  if (!user || !user.account?.address) {
+  if (!user.account?.address) {
     log.push('Skipping, no user found')
     return
   }
   return user.account.address
 }
 
+/**
+ * Fetch functions
+ */
 const fetchAsset = async (tokenId: number, log: Log): Promise<any> => {
   log.push(`Fetching #${tokenId}`)
-  const response = await fetch(openseaAsset(tokenId), openseaFetchOpts as any)
+  const response = await fetch(opensea.asset(tokenId), openseaFetchOpts as any)
   const asset = await response.json()
+  if (!asset.token_id) {
+    log.push('Skipping, no asset found')
+    return
+  }
   return asset
 }
 
@@ -77,11 +77,11 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
     limit: 50,
   } as any)
   const response = await fetch(
-    `${openseaAssets}?${params}`,
+    `${opensea.assets}?${params}`,
     openseaFetchOpts as any
   )
   const { assets } = await response.json()
-  if (assets.length === 0) {
+  if (!assets || assets.length === 0) {
     log.push(`Skipping, no tokens found for address ${addr}`)
     return
   }
@@ -89,7 +89,28 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
   return Number(assets[rand].token_id)
 }
 
-const generateEmbed = async (tokenId: number, log: Log) => {
+/**
+ * ENS
+ */
+const provider = new ethers.providers.InfuraProvider(
+  'mainnet',
+  INFURA_PROJECT_ID
+)
+
+const addrForENSName = async (name: string, log: Log) => {
+  log.push(`Fetching ens name: ${name}`)
+  const result = await provider.resolveName(name)
+  if (!result) {
+    log.push(`Skipping, no address found for ${name}`)
+    return
+  }
+  return result
+}
+
+/**
+ * Discord MessageEmbed
+ */
+const messageEmbed = async (tokenId: number, log: Log) => {
   if (
     tokenId < Number(MIN_TOKEN_ID) ||
     tokenId > Number(MAX_TOKEN_ID) ||
@@ -101,6 +122,7 @@ const generateEmbed = async (tokenId: number, log: Log) => {
 
   const fields: any[] = []
   const asset = await fetchAsset(tokenId, log)
+  if (!asset) return
 
   if (asset.owner) {
     const name = asset.owner.user?.username ?? shortAddr(asset.owner.address)
@@ -174,7 +196,7 @@ const generateEmbed = async (tokenId: number, log: Log) => {
   return new MessageEmbed()
     .setColor('#5296d5')
     .setTitle(`${TOKEN_NAME} #${tokenId}`)
-    .setURL(permalink(tokenId))
+    .setURL(opensea.permalink(tokenId))
     .setFields(fields)
     .setImage(asset.image_original_url)
 }
@@ -201,14 +223,14 @@ const matches = async (message: any, log: Log) => {
       matches.push(Number(id))
     } else if (/\w*\.eth/.test(id)) {
       // matches: .eth name
-      const addr = await ensName(id, log)
+      const addr = await addrForENSName(id, log)
       if (addr) {
         const tokenId = await fetchRandomAssetByAddr(addr, log)
         if (tokenId) matches.push(tokenId)
       }
     } else if (/\w*/.test(id)) {
       // matches: opensea username
-      const addr = await openseaName(id, log)
+      const addr = await addrForOpenseaUsername(id, log)
       if (addr) {
         const tokenId = await fetchRandomAssetByAddr(addr, log)
         if (tokenId) matches.push(tokenId)
@@ -245,12 +267,12 @@ async function main() {
       let embedLog = 'Replied with'
 
       for (const tokenId of tokenIds.slice(0, 5)) {
-        const embed = await generateEmbed(tokenId, log)
-        if (!embed) continue
-        embeds.push(embed)
-        embedLog += ` #${tokenId}`
+        const embed = await messageEmbed(tokenId, log)
+        if (embed) {
+          embeds.push(embed)
+          embedLog += ` #${tokenId}`
+        }
       }
-
       if (embeds.length > 0) {
         await message.reply({ embeds })
         log.push(embedLog)
@@ -266,6 +288,9 @@ async function main() {
     }
   })
 
+  /**
+   * Start
+   */
   client.login(DISCORD_TOKEN)
 }
 
