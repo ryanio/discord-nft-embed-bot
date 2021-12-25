@@ -39,7 +39,7 @@ const opensea = {
   } as any,
   api: 'https://api.opensea.io/api/v1/',
   collection: `https://opensea.io/assets/${TOKEN_ADDRESS}`,
-  assets: (tokenId: number) => `${opensea.api}assets/`,
+  assets: () => `${opensea.api}assets/`,
   asset: (tokenId: number) =>
     `${opensea.api}asset/${TOKEN_ADDRESS}/${tokenId}/`,
   user: (username: string) => `${opensea.api}user/${username}/`,
@@ -77,7 +77,7 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
     owner: addr,
     limit: 50,
   } as any)
-  const response = await fetch(`${opensea.assets}?${params}`, opensea.getOpts)
+  const response = await fetch(`${opensea.assets()}?${params}`, opensea.getOpts)
   const { assets } = await response.json()
   if (!assets || assets.length === 0) {
     log.push(`Skipping, no tokens found for address ${addr}`)
