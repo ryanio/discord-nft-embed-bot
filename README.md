@@ -6,6 +6,8 @@ Originally developed for [@dutchtide](https://twitter.com/dutchtide)'s [𝕄𝕚
 
 An OpenSea API key is needed - [request one here](https://docs.opensea.io/reference/request-an-api-key).
 
+Also check out [opensea-activity-bot](https://github.com/ryanio/opensea-activity-bot).
+
 ## Supported syntax
 
 - `#1234`
@@ -68,3 +70,13 @@ The `DISCORD_TOKEN` looks like this: `OTE5MzY5ODIyNzEyNzc5NzUz.YBuz2g.x1rGh4zx_X
 ### Run
 
 `yarn start`
+
+#### Heroku
+
+A `Procfile` is included for easy use on platforms like Heroku.
+
+Clone this repo, push it to heroku, set up the environment variables above, and spin up a worker with `heroku ps:scale web=0 worker=1`
+
+Then watch the logs with `heroku logs --tail`
+
+If your discord bot is not able to post messages ensure it is added to the channels you've specified and it has the permissions to `Read Messages/View Channels`, `Send Messages` and `Embed Links`, and that you have also enabled `Message Content Intent` on your bot page.
