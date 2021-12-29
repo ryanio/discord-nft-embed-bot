@@ -1,5 +1,6 @@
 {
   "name": "discord-nft-bot",
+  "version": "1.0.0",
   "description": "A discord.js bot that listens to messages in channels and replies with items from an nft collection.",
   "author": "Ryan Ghods <ryan@ryanio.com>",
   "license": "CC0-1.0",
