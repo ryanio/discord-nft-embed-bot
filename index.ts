@@ -206,7 +206,7 @@ const matches = async (message: any, log: Log) => {
   let match = regex.exec(message.content)
   if (match !== null) {
     log.push(
-      `Message from ${message.author.username} in #${
+      `${TOKEN_NAME} - Message from ${message.author.username} in #${
         message.channel?.name ?? message.channelId
       }:\n> ${message.content}`
     )
