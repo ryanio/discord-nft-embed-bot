@@ -1,7 +1,8 @@
 {
+  "files": ["index.ts"],
   "compilerOptions": {
-    "target": "es2019",
-    "esModuleInterop": true,
+    "module": "commonjs",
+    "target": "es2020",
+    "outDir": "dist",
   },
-  "files": ["index.ts"]
 }
