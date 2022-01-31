@@ -14,6 +14,7 @@ const {
   TOKEN_ADDRESS,
   MIN_TOKEN_ID,
   MAX_TOKEN_ID,
+  DEBUG,
 } = process.env
 
 /**
@@ -21,7 +22,7 @@ const {
  * (e.g. 0x38a16...c7eb3)
  */
 const shortAddr = (addr: string) =>
-  addr.slice(0, 7) + '...' + addr.slice(15, 20)
+  addr.slice(0, 7) + '...' + addr.slice(37, 42)
 
 /**
  * Returns a random number specified by params, min and mix included.
@@ -48,13 +49,26 @@ const opensea = {
 
 const addrForOpenseaUsername = async (username: string, log: Log) => {
   log.push(`Fetching OpenSea username: ${username}`)
-  const response = await fetch(opensea.user(username), opensea.getOpts)
-  const user = await response.json()
-  if (!user.account?.address) {
-    log.push('Skipping, no user found')
-    return
+  try {
+    const response = await fetch(opensea.user(username), opensea.getOpts)
+    if (!response.ok) {
+      log.push(`Fetch Error - ${response.status}: ${response.statusText}`)
+      if (DEBUG) {
+        log.push(
+          `Fetch Error - DEBUG: ${JSON.stringify(await response.text())}`
+        )
+      }
+      return
+    }
+    const user = await response.json()
+    if (!user.account?.address) {
+      log.push('Skipping, no user found')
+      return
+    }
+    return user.account.address
+  } catch (error) {
+    log.push(`Fetch Error: ${error?.message ?? error}`)
   }
-  return user.account.address
 }
 
 /**
@@ -62,13 +76,26 @@ const addrForOpenseaUsername = async (username: string, log: Log) => {
  */
 const fetchAsset = async (tokenId: number, log: Log): Promise<any> => {
   log.push(`Fetching #${tokenId}`)
-  const response = await fetch(opensea.asset(tokenId), opensea.getOpts)
-  const asset = await response.json()
-  if (!asset.token_id) {
-    log.push('Skipping, no asset found')
-    return
+  try {
+    const response = await fetch(opensea.asset(tokenId), opensea.getOpts)
+    if (!response.ok) {
+      log.push(`Fetch Error - ${response.status}: ${response.statusText}`)
+      if (DEBUG) {
+        log.push(
+          `Fetch Error - DEBUG: ${JSON.stringify(await response.text())}`
+        )
+      }
+      return
+    }
+    const asset = await response.json()
+    if (!asset.token_id) {
+      log.push('Skipping, no asset found')
+      return
+    }
+    return asset
+  } catch (error) {
+    log.push(`Fetch Error: ${error?.message ?? error}`)
   }
-  return asset
 }
 
 const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
@@ -77,14 +104,31 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
     owner: addr,
     limit: 50,
   } as any)
-  const response = await fetch(`${opensea.assets()}?${params}`, opensea.getOpts)
-  const { assets } = await response.json()
-  if (!assets || assets.length === 0) {
-    log.push(`Skipping, no tokens found for address ${addr}`)
-    return
+  log.push(`Fetching random asset owned by: ${addr}`)
+  try {
+    const response = await fetch(
+      `${opensea.assets()}?${params}`,
+      opensea.getOpts
+    )
+    if (!response.ok) {
+      log.push(`Fetch Error - ${response.status}: ${response.statusText}`)
+      if (DEBUG) {
+        log.push(
+          `Fetch Error - DEBUG: ${JSON.stringify(await response.text())}`
+        )
+      }
+      return
+    }
+    const { assets } = await response.json()
+    if (!assets || assets.length === 0) {
+      log.push(`Skipping, no tokens found for address ${addr}`)
+      return
+    }
+    const rand = random(0, assets.length - 1)
+    return Number(assets[rand].token_id)
+  } catch (error) {
+    log.push(`Fetch Error: ${error?.message ?? error}`)
   }
-  const rand = random(0, assets.length - 1)
-  return Number(assets[rand].token_id)
 }
 
 /**
