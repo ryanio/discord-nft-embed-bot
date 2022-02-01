@@ -52,12 +52,10 @@ const addrForOpenseaUsername = async (username: string, log: Log) => {
   try {
     const response = await fetch(opensea.user(username), opensea.getOpts)
     if (!response.ok) {
-      log.push(`Fetch Error - ${response.status}: ${response.statusText}`)
-      if (DEBUG) {
-        log.push(
-          `Fetch Error - DEBUG: ${JSON.stringify(await response.text())}`
-        )
-      }
+      log.push(
+        `Fetch Error - ${response.status}: ${response.statusText}`,
+        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+      )
       return
     }
     const user = await response.json()
@@ -79,12 +77,10 @@ const fetchAsset = async (tokenId: number, log: Log): Promise<any> => {
   try {
     const response = await fetch(opensea.asset(tokenId), opensea.getOpts)
     if (!response.ok) {
-      log.push(`Fetch Error - ${response.status}: ${response.statusText}`)
-      if (DEBUG) {
-        log.push(
-          `Fetch Error - DEBUG: ${JSON.stringify(await response.text())}`
-        )
-      }
+      log.push(
+        `Fetch Error - ${response.status}: ${response.statusText}`,
+        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+      )
       return
     }
     const asset = await response.json()
@@ -111,12 +107,10 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
       opensea.getOpts
     )
     if (!response.ok) {
-      log.push(`Fetch Error - ${response.status}: ${response.statusText}`)
-      if (DEBUG) {
-        log.push(
-          `Fetch Error - DEBUG: ${JSON.stringify(await response.text())}`
-        )
-      }
+      log.push(
+        `Fetch Error - ${response.status}: ${response.statusText}`,
+        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+      )
       return
     }
     const { assets } = await response.json()
