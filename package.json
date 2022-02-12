@@ -8,7 +8,7 @@
     "node": "^16.13.1"
   },
   "scripts": {
-    "postinstall": "yarn run build",
+    "postinstall": "yarn build",
     "build": "npx tsc",
     "start": "node dist/index.js"
   },
