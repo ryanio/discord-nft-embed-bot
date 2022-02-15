@@ -1,7 +1,9 @@
 import { URLSearchParams } from 'url'
 import fetch from 'node-fetch'
 import { Client, Intents, MessageEmbed } from 'discord.js'
-import { ethers } from 'ethers'
+import { FixedNumber, providers, utils } from 'ethers'
+
+const { commify, formatUnits } = utils
 
 type Log = string[]
 const separator = '-'.repeat(60)
@@ -128,10 +130,7 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
 /**
  * ENS
  */
-const provider = new ethers.providers.InfuraProvider(
-  'mainnet',
-  INFURA_PROJECT_ID
-)
+const provider = new providers.InfuraProvider('mainnet', INFURA_PROJECT_ID)
 
 const addrForENSName = async (name: string, log: Log) => {
   log.push(`Fetching ens name: ${name}`)
@@ -172,11 +171,13 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   if (asset.last_sale) {
     const { total_price, payment_token, event_timestamp } = asset.last_sale
     const { decimals, symbol, usd_price } = payment_token
-    const price = ethers.utils.formatUnits(total_price, decimals)
-    const usdPrice = ethers.FixedNumber.from(price)
-      .mulUnsafe(ethers.FixedNumber.from(usd_price))
-      .toUnsafeFloat()
-      .toFixed(2)
+    const price = formatUnits(total_price, decimals)
+    const usdPrice = commify(
+      FixedNumber.from(price)
+        .mulUnsafe(FixedNumber.from(usd_price))
+        .toUnsafeFloat()
+        .toFixed(2)
+    )
     const lastSale = `${price} ${symbol} ($${usdPrice} USD)`
     fields.push({
       name: 'Last Sale',
@@ -192,11 +193,13 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     if (order) {
       const { base_price, payment_token_contract, closing_extendable } = order
       const { decimals, symbol, usd_price } = payment_token_contract
-      const price = ethers.utils.formatUnits(base_price, decimals)
-      const usdPrice = ethers.FixedNumber.from(price)
-        .mulUnsafe(ethers.FixedNumber.from(usd_price))
-        .toUnsafeFloat()
-        .toFixed(2)
+      const price = formatUnits(base_price, decimals)
+      const usdPrice = commify(
+        FixedNumber.from(price)
+          .mulUnsafe(FixedNumber.from(usd_price))
+          .toUnsafeFloat()
+          .toFixed(2)
+      )
       const listedFor = `${price} ${symbol} ($${usdPrice} USD)`
       fields.push({
         name: closing_extendable ? 'Auction' : 'Listed For',
@@ -213,13 +216,13 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     if (order) {
       const { base_price, payment_token_contract } = order
       const { decimals, symbol, usd_price } = payment_token_contract
-      const price = ethers.utils.formatUnits(base_price, decimals)
-      const usdPrice = ethers.FixedNumber.from(price)
-        .mulUnsafe(ethers.FixedNumber.from(usd_price))
+      const price = formatUnits(base_price, decimals)
+      const usdPrice = FixedNumber.from(price)
+        .mulUnsafe(FixedNumber.from(usd_price))
         .toUnsafeFloat()
         .toFixed(2) as unknown as number
       if (usdPrice > 100) {
-        const highestOffer = `${price} ${symbol} ($${usdPrice} USD)`
+        const highestOffer = `${price} ${symbol} ($${commify(usdPrice)} USD)`
         fields.push({
           name: 'Highest Offer',
           value: highestOffer,
