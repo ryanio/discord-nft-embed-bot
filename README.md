@@ -13,7 +13,7 @@ To run multiple instances of this bot at once check out [bot-runner](https://git
 - `#1234`
 - `#ensname.eth`
 - `#openseaUsername`
-- `#random`
+- `#random` or `#rand` or `#?`
 
 Example reply:
 

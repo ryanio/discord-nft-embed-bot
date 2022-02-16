@@ -242,8 +242,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
 
 const matches = async (message: any, log: Log) => {
   const matches = []
-  const regex = /#(\d*|\w*.eth|\w*|random)(\s|\n|\W|$)/g
-
+  const regex = /#(random|rand|\?|\d*|[\w.\-]*.eth|[\w.\-]*)(\s|\n|\W|$)/g
   let match = regex.exec(message.content)
   if (match !== null) {
     log.push(
@@ -254,8 +253,8 @@ const matches = async (message: any, log: Log) => {
   }
   while (match !== null) {
     const id = match[1]
-    if (id === 'random') {
-      // matches: 'random'
+    if (id === 'random' || id === 'rand' || id === '?') {
+      // matches: 'random' or 'rand' or '?'
       matches.push(random())
     } else if (/^[0-9]+/.test(id)) {
       // matches: number digits (token id)
