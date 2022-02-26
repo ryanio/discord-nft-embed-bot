@@ -20,6 +20,43 @@ const {
 } = process.env
 
 /**
+ * Formats amount, decimals, and symbols to final string output.
+ */
+export const formatAmount = (
+  amount: number,
+  decimals: number,
+  symbol: string
+) => {
+  let value = formatUnits(amount, decimals)
+  const split = value.split('.')
+  if (split[1].length > 4) {
+    // Trim to 4 decimals max
+    value = `${split[0]}.${split[1].slice(0, 5)}`
+  } else if (split[1] === '0') {
+    // If whole number remove '.0'
+    value = split[0]
+  }
+  return `${value} ${symbol}`
+}
+
+/**
+ * Formats price and usdPrice to final string output.
+ */
+export const formatUSD = (price: string, usdPrice: string) => {
+  let value = commify(
+    FixedNumber.from(price.split(' ')[0])
+      .mulUnsafe(FixedNumber.from(usdPrice))
+      .toUnsafeFloat()
+      .toFixed(2)
+  )
+  // Format to 2 decimal places e.g. $1.3 -> $1.30
+  if (value.split('.')[1].length === 1) {
+    value = `${value}0`
+  }
+  return value
+}
+
+/**
  * Returns a shortened version of a full ethereum address
  * (e.g. 0x38a16...c7eb3)
  */
@@ -169,16 +206,11 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   }
 
   if (asset.last_sale) {
-    const { total_price, payment_token, event_timestamp } = asset.last_sale
+    const { total_price, payment_token } = asset.last_sale
     const { decimals, symbol, usd_price } = payment_token
-    const price = formatUnits(total_price, decimals)
-    const usdPrice = commify(
-      FixedNumber.from(price)
-        .mulUnsafe(FixedNumber.from(usd_price))
-        .toUnsafeFloat()
-        .toFixed(2)
-    )
-    const lastSale = `${price} ${symbol} ($${usdPrice} USD)`
+    const price = formatAmount(total_price, decimals, symbol)
+    const usdPrice = formatUSD(price, usd_price)
+    const lastSale = `${price} ($${usdPrice} USD)`
     fields.push({
       name: 'Last Sale',
       value: lastSale,
@@ -193,14 +225,9 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     if (order) {
       const { base_price, payment_token_contract, closing_extendable } = order
       const { decimals, symbol, usd_price } = payment_token_contract
-      const price = formatUnits(base_price, decimals)
-      const usdPrice = commify(
-        FixedNumber.from(price)
-          .mulUnsafe(FixedNumber.from(usd_price))
-          .toUnsafeFloat()
-          .toFixed(2)
-      )
-      const listedFor = `${price} ${symbol} ($${usdPrice} USD)`
+      const price = formatAmount(base_price, decimals, symbol)
+      const usdPrice = formatUSD(price, usd_price)
+      const listedFor = `${price} ($${usdPrice} USD)`
       fields.push({
         name: closing_extendable ? 'Auction' : 'Listed For',
         value: listedFor,
@@ -216,13 +243,10 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     if (order) {
       const { base_price, payment_token_contract } = order
       const { decimals, symbol, usd_price } = payment_token_contract
-      const price = formatUnits(base_price, decimals)
-      const usdPrice = FixedNumber.from(price)
-        .mulUnsafe(FixedNumber.from(usd_price))
-        .toUnsafeFloat()
-        .toFixed(2) as unknown as number
-      if (usdPrice > 100) {
-        const highestOffer = `${price} ${symbol} ($${commify(usdPrice)} USD)`
+      const price = formatAmount(base_price, decimals, symbol)
+      const usdPrice = formatUSD(price, usd_price)
+      if (Number(usdPrice) > 100) {
+        const highestOffer = `${price} ($${usdPrice} USD)`
         fields.push({
           name: 'Highest Offer',
           value: highestOffer,
