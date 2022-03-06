@@ -196,6 +196,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   const asset = await fetchAsset(tokenId, log)
   if (!asset) return
 
+  // Format owner
   if (asset.owner) {
     const name = asset.owner.user?.username ?? shortAddr(asset.owner.address)
     fields.push({
@@ -205,6 +206,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     })
   }
 
+  // Format last sale
   if (asset.last_sale) {
     const { total_price, payment_token } = asset.last_sale
     const { decimals, symbol, usd_price } = payment_token
@@ -218,9 +220,10 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     })
   }
 
+  // Format listing price
   if (asset.orders?.length > 0) {
     const order = asset.orders.find(
-      (o: any) => asset.owner.user?.username === o.maker?.user?.username
+      (o: any) => asset.owner.address === o.maker.address
     )
     if (order) {
       const { base_price, payment_token_contract, closing_extendable } = order
@@ -236,9 +239,10 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     }
   }
 
+  // Format highest offer
   if (asset.orders?.length > 0) {
     const order = asset.orders.find(
-      (o: any) => asset.owner.user?.username !== o.maker?.user?.username
+      (o: any) => asset.owner.address !== o.maker.address
     )
     if (order) {
       const { base_price, payment_token_contract } = order
