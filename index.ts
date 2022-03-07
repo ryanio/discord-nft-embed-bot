@@ -83,6 +83,7 @@ const opensea = {
   asset: (tokenId: number) =>
     `${opensea.api}asset/${TOKEN_ADDRESS}/${tokenId}/`,
   user: (username: string) => `${opensea.api}user/${username}/`,
+  orders: `https://api.opensea.io/wyvern/v1/orders`,
   permalink: (tokenId: number) => `${opensea.collection}/${tokenId}`,
 }
 
@@ -137,7 +138,6 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
   const params = new URLSearchParams({
     asset_contract_address: TOKEN_ADDRESS,
     owner: addr,
-    limit: 50,
   } as any)
   log.push(`Fetching random asset owned by: ${addr}`)
   try {
@@ -161,6 +161,30 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
     return Number(assets[rand].token_id)
   } catch (error) {
     log.push(`Fetch Error: ${error?.message ?? error}`)
+  }
+}
+
+const fetchOrders = async (tokenId: number, log: Log): Promise<any> => {
+  try {
+    const params: any = {
+      asset_contract_address: TOKEN_ADDRESS,
+      token_id: tokenId,
+      order_by: 'eth_price',
+      order_direction: 'desc',
+    }
+    const url = `${opensea.orders}?${new URLSearchParams(params)}`
+    const response = await fetch(url, opensea.getOpts)
+    if (!response.ok) {
+      log.push(
+        `Fetch Error (Orders) - ${response.status}: ${response.statusText}`,
+        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+      )
+      return
+    }
+    const result = await response.json()
+    return result.orders
+  } catch (error) {
+    log.push(`Fetch Error (Orders): ${error?.message ?? error}`)
   }
 }
 
@@ -220,13 +244,16 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     })
   }
 
-  // Format listing price
-  if (asset.orders?.length > 0) {
-    const order = asset.orders.find(
+  // Format orders
+  const orders = await fetchOrders(tokenId, log)
+  if (orders?.length > 0) {
+    // Format listing price
+    const orderListing = orders.find(
       (o: any) => asset.owner.address === o.maker.address
     )
-    if (order) {
-      const { base_price, payment_token_contract, closing_extendable } = order
+    if (orderListing) {
+      const { base_price, payment_token_contract, closing_extendable } =
+        orderListing
       const { decimals, symbol, usd_price } = payment_token_contract
       const price = formatAmount(base_price, decimals, symbol)
       const usdPrice = formatUSD(price, usd_price)
@@ -237,15 +264,13 @@ const messageEmbed = async (tokenId: number, log: Log) => {
         inline: true,
       })
     }
-  }
 
-  // Format highest offer
-  if (asset.orders?.length > 0) {
-    const order = asset.orders.find(
+    // Format highest offer
+    const orderOffer = orders.find(
       (o: any) => asset.owner.address !== o.maker.address
     )
-    if (order) {
-      const { base_price, payment_token_contract } = order
+    if (orderOffer) {
+      const { base_price, payment_token_contract } = orderOffer
       const { decimals, symbol, usd_price } = payment_token_contract
       const price = formatAmount(base_price, decimals, symbol)
       const usdPrice = formatUSD(price, usd_price)
