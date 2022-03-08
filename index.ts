@@ -69,15 +69,6 @@ const shortAddr = (addr: string) =>
 const random = (min = Number(MIN_TOKEN_ID), max = Number(MAX_TOKEN_ID)) =>
   Math.floor(Math.random() * (max - min + 1) + min)
 
-const imageForAsset = (asset: any) => {
-  // Format ipfs:// urls to https://ipfs.io/ipfs/
-  if (asset.image_original_url.slice(0, 7) === 'ipfs://') {
-    const hash = asset.image_original_url.slice(7)
-    return `https://ipfs.io/ipfs/${hash}`
-  }
-  return asset.image_original_url
-}
-
 /**
  * OpenSea
  */
@@ -116,6 +107,26 @@ const addrForOpenseaUsername = async (username: string, log: Log) => {
   } catch (error) {
     log.push(`Fetch Error: ${error?.message ?? error}`)
   }
+}
+
+const imageForAsset = (asset: any) => {
+  // Format ipfs:// urls to https://ipfs.io/ipfs/
+  if (asset.image_original_url.slice(0, 7) === 'ipfs://') {
+    const hash = asset.image_original_url.slice(7)
+    return `https://ipfs.io/ipfs/${hash}`
+  }
+  return asset.image_original_url
+}
+
+const compareOrders = (a: any, b: any) => {
+  const usdPrice = (order: any) => {
+    const { base_price, payment_token_contract } = order
+    const { decimals, symbol, usd_price } = payment_token_contract
+    const price = formatAmount(base_price, decimals, symbol)
+    const usdPrice = formatUSD(price, usd_price)
+    return Number(usdPrice.replace(/,/g, ''))
+  }
+  return usdPrice(a) - usdPrice(b)
 }
 
 /**
@@ -178,8 +189,6 @@ const fetchOrders = async (tokenId: number, log: Log): Promise<any> => {
     const params: any = {
       asset_contract_address: TOKEN_ADDRESS,
       token_id: tokenId,
-      order_by: 'eth_price',
-      order_direction: 'desc',
     }
     const url = `${opensea.orders}?${new URLSearchParams(params)}`
     const response = await fetch(url, opensea.getOpts)
@@ -256,10 +265,10 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   // Format orders
   const orders = await fetchOrders(tokenId, log)
   if (orders?.length > 0) {
-    // Format listing price
-    const orderListing = orders.find(
-      (o: any) => asset.owner.address === o.maker.address
-    )
+    // Format lowest list price
+    const orderListing = orders
+      .sort(compareOrders)
+      .find((o: any) => asset.owner.address === o.maker.address)
     if (orderListing) {
       const { base_price, payment_token_contract, closing_extendable } =
         orderListing
@@ -275,22 +284,21 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     }
 
     // Format highest offer
-    const orderOffer = orders.find(
-      (o: any) => asset.owner.address !== o.maker.address
-    )
+    const orderOffer = orders
+      .sort(compareOrders)
+      .reverse()
+      .find((o: any) => asset.owner.address !== o.maker.address)
     if (orderOffer) {
       const { base_price, payment_token_contract } = orderOffer
       const { decimals, symbol, usd_price } = payment_token_contract
       const price = formatAmount(base_price, decimals, symbol)
       const usdPrice = formatUSD(price, usd_price)
-      if (Number(usdPrice) > 100) {
-        const highestOffer = `${price} ($${usdPrice} USD)`
-        fields.push({
-          name: 'Highest Offer',
-          value: highestOffer,
-          inline: true,
-        })
-      }
+      const highestOffer = `${price} ($${usdPrice} USD)`
+      fields.push({
+        name: 'Highest Offer',
+        value: highestOffer,
+        inline: true,
+      })
     }
   }
 
