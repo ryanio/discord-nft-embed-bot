@@ -69,6 +69,15 @@ const shortAddr = (addr: string) =>
 const random = (min = Number(MIN_TOKEN_ID), max = Number(MAX_TOKEN_ID)) =>
   Math.floor(Math.random() * (max - min + 1) + min)
 
+const imageForAsset = (asset: any) => {
+  // Format ipfs:// urls to https://ipfs.io/ipfs/
+  if (asset.image_original_url.slice(0, 7) === 'ipfs://') {
+    const hash = asset.image_original_url.slice(7)
+    return `https://ipfs.io/ipfs/${hash}`
+  }
+  return asset.image_original_url
+}
+
 /**
  * OpenSea
  */
@@ -290,7 +299,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     .setTitle(`${TOKEN_NAME} #${tokenId}`)
     .setURL(opensea.permalink(tokenId))
     .setFields(fields)
-    .setImage(asset.image_original_url)
+    .setImage(imageForAsset(asset))
 }
 
 const matches = async (message: any, log: Log) => {
