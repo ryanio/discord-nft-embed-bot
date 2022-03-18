@@ -67,16 +67,24 @@ To get your `DISCORD_TOKEN`, [create a Discord app](https://discord.com/develope
 
 The `DISCORD_TOKEN` looks like this: `OTE5MzY5ODIyNzEyNzc5NzUz.YBuz2g.x1rGh4zx_XlSNj43oreukvlwsfw`
 
+If your discord bot is not able to post messages ensure it is added to the channels you've specified and it has the permissions to `Read Messages/View Channels`, `Send Messages` and `Embed Links`, and that you have also enabled `Message Content Intent` on your bot page.
+
 ### Run
 
 `yarn start`
 
-#### Heroku
+#### Running on a server
 
-A `Procfile` is included for easy use on platforms like Heroku.
+It is recommended to use a DigitalOcean Droplet over Heroku for improved stability.
+
+Support this repository by using the referral badge below:
+
+[![DigitalOcean Referral Badge](https://web-platforms.sfo2.cdn.digitaloceanspaces.com/WWW/Badge%201.svg)](https://www.digitalocean.com/?refcode=3f8c76216510&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge)
+
+##### Heroku
+
+A `Procfile` is included for easy use.
 
 Clone this repo, push it to heroku, set up the environment variables above, and spin up a worker with `heroku ps:scale web=0 worker=1`
 
 Then watch the logs with `heroku logs --tail`
-
-If your discord bot is not able to post messages ensure it is added to the channels you've specified and it has the permissions to `Read Messages/View Channels`, `Send Messages` and `Embed Links`, and that you have also enabled `Message Content Intent` on your bot page.
