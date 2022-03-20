@@ -75,11 +75,13 @@ If your discord bot is not able to post messages ensure it is added to the chann
 
 #### Running on a server
 
-It is recommended to use a DigitalOcean Droplet over Heroku for improved stability.
+I recommend to use DigitalOcean over Heroku for improved stability. Heroku servers can restart (cycle) which can lead to missed messages.
 
-Support this repository by using the referral badge below:
+My preferred setup is a $5/month Basic Droplet with Ubuntu. Install Node v16, yarn, clone this repo, set env vars, and run using [`pm2`](https://pm2.keymetrics.io/). To respawn after reboot, set your env vars in `/etc/profile`, then run `pm2 startup`, and `pm2 save`.
 
-[![DigitalOcean Referral Badge](https://web-platforms.sfo2.cdn.digitaloceanspaces.com/WWW/Badge%201.svg)](https://www.digitalocean.com/?refcode=3f8c76216510&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge)
+Support this project by using the referral badge below:
+
+[![DigitalOcean Referral Badge](https://web-platforms.sfo2.digitaloceanspaces.com/WWW/Badge%203.svg)](https://www.digitalocean.com/?refcode=3f8c76216510&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge)
 
 ##### Heroku
 
