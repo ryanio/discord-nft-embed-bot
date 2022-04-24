@@ -61,6 +61,11 @@ Please define the following env variables for the repository to work as intended
 - `MIN_TOKEN_ID`
 - `MAX_TOKEN_ID`
 
+#### Optional
+
+- `RANDOM_INTERVALS`
+  - A comma-separated list of `channelId=intervalInMinutes` e.g. `662377002338091020=5,924064011820077076=10` to send random items to channels in intervals.
+
 ### Bot
 
 To get your `DISCORD_TOKEN`, [create a Discord app](https://discord.com/developers/applications). Create a bot with the permissions: `Read Messages/View Channels`, `Send Messages`, and `Embed Links`. Then [add your bot to your server](https://discordjs.guide/preparations/adding-your-bot-to-servers.html#bot-invite-links). The bot will listen and reply to messages in all of the channels it has access to.

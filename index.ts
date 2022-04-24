@@ -1,6 +1,6 @@
 import { URLSearchParams } from 'url'
 import fetch from 'node-fetch'
-import { Client, Intents, MessageEmbed } from 'discord.js'
+import { Client, Intents, MessageEmbed, Channel } from 'discord.js'
 import { FixedNumber, providers, utils } from 'ethers'
 
 const { commify, formatUnits } = utils
@@ -16,6 +16,7 @@ const {
   TOKEN_ADDRESS,
   MIN_TOKEN_ID,
   MAX_TOKEN_ID,
+  RANDOM_INTERVALS,
   DEBUG,
 } = process.env
 
@@ -351,17 +352,56 @@ const matches = async (message: any, log: Log) => {
   return matches
 }
 
+const channelName = (channel: Channel | any) => {
+  return channel.name ?? channel.channelId
+}
+
+const sendMessage = async (channel: Channel | any, embed: MessageEmbed) => {
+  await channel.send({ embeds: [embed] })
+}
+
+const setupRandomIntervals = async (client: Client) => {
+  if (!RANDOM_INTERVALS) return
+  const intervals = RANDOM_INTERVALS.split(',')
+  console.log(separator)
+  for (const interval of intervals) {
+    const [channelId, minutesStr] = interval.split('=')
+    const minutes = Number(minutesStr)
+    const channel = await client.channels.fetch(channelId)
+    const chanName = channelName(channel)
+    console.log(
+      `Sending random token every ${
+        minutes === 1 ? 'minute' : `${minutes} minutes`
+      } to #${chanName}`
+    )
+    console.log(separator)
+    setInterval(async () => {
+      const tokenId = random()
+      const log: Log = []
+      const embed = await messageEmbed(tokenId, log)
+      log.push(`Sending random token to #${chanName}`)
+      await sendMessage(channel, embed)
+      if (log.length > 0) {
+        log.push(separator)
+        for (const l of log) {
+          console.log(l)
+        }
+      }
+    }, minutes * 60 * 1000)
+  }
+}
+
 async function main() {
   const client = new Client({
     intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES],
     partials: ['MESSAGE'],
   })
 
-  client.on('ready', () => {
+  client.on('ready', async () => {
     console.log(separator)
     console.log(`Logged in as ${client?.user?.tag}!`)
     console.log('Listening for messages...')
-    console.log(separator)
+    await setupRandomIntervals(client)
   })
 
   client.on('messageCreate', async (message) => {
