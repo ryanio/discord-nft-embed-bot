@@ -84,7 +84,8 @@ const opensea = {
   asset: (tokenId: number) =>
     `${opensea.api}asset/${TOKEN_ADDRESS}/${tokenId}/`,
   user: (username: string) => `${opensea.api}user/${username}/`,
-  orders: `https://api.opensea.io/wyvern/v1/orders`,
+  offers: (tokenId: number) => `${opensea.asset(tokenId)}offers`,
+  listings: (tokenId: number) => `${opensea.asset(tokenId)}listings`,
   permalink: (tokenId: number) => `${opensea.collection}/${tokenId}`,
 }
 
@@ -119,7 +120,7 @@ const imageForAsset = (asset: any) => {
   return asset.image_original_url
 }
 
-const compareOrders = (a: any, b: any) => {
+const sortPriceASC = (a: any, b: any) => {
   const usdPrice = (order: any) => {
     const { base_price, payment_token_contract } = order
     const { decimals, symbol, usd_price } = payment_token_contract
@@ -185,25 +186,52 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
   }
 }
 
-const fetchOrders = async (tokenId: number, log: Log): Promise<any> => {
+const fetchHighestOffer = async (
+  tokenId: number,
+  owner: string,
+  log: Log
+): Promise<any> => {
   try {
-    const params: any = {
-      asset_contract_address: TOKEN_ADDRESS,
-      token_id: tokenId,
-    }
-    const url = `${opensea.orders}?${new URLSearchParams(params)}`
+    const url = opensea.offers(tokenId)
     const response = await fetch(url, opensea.getOpts)
     if (!response.ok) {
       log.push(
-        `Fetch Error (Orders) - ${response.status}: ${response.statusText}`,
+        `Fetch Error (Offers) - ${response.status}: ${response.statusText}`,
         DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
       )
       return
     }
     const result = await response.json()
-    return result.orders
+    return result.offers
+      .sort(sortPriceASC)
+      .reverse()
+      .find((o: any) => o.maker.address !== owner)
   } catch (error) {
-    log.push(`Fetch Error (Orders): ${error?.message ?? error}`)
+    log.push(`Fetch Error (Offers): ${error?.message ?? error}`)
+  }
+}
+
+const fetchLowestListing = async (
+  tokenId: number,
+  owner: string,
+  log: Log
+): Promise<any> => {
+  try {
+    const url = opensea.listings(tokenId)
+    const response = await fetch(url, opensea.getOpts)
+    if (!response.ok) {
+      log.push(
+        `Fetch Error (Listings) - ${response.status}: ${response.statusText}`,
+        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+      )
+      return
+    }
+    const result = await response.json()
+    return result.listings
+      .sort(sortPriceASC)
+      .find((l: any) => l.maker.address === owner)
+  } catch (error) {
+    log.push(`Fetch Error (Listings): ${error?.message ?? error}`)
   }
 }
 
@@ -263,44 +291,34 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     })
   }
 
-  // Format orders
-  const orders = await fetchOrders(tokenId, log)
-  if (orders?.length > 0) {
-    // Format lowest list price
-    const orderListing = orders
-      .sort(compareOrders)
-      .find((o: any) => asset.owner.address === o.maker.address)
-    if (orderListing) {
-      const { base_price, payment_token_contract, closing_extendable } =
-        orderListing
-      const { decimals, symbol, usd_price } = payment_token_contract
-      const price = formatAmount(base_price, decimals, symbol)
-      const usdPrice = formatUSD(price, usd_price)
-      const listedFor = `${price} ($${usdPrice} USD)`
-      fields.push({
-        name: closing_extendable ? 'Auction' : 'Listed For',
-        value: listedFor,
-        inline: true,
-      })
-    }
+  // Format lowest list price
+  const listing = await fetchLowestListing(tokenId, asset.owner.address, log)
+  if (listing) {
+    const { base_price, payment_token_contract, closing_extendable } = listing
+    const { decimals, symbol, usd_price } = payment_token_contract
+    const price = formatAmount(base_price, decimals, symbol)
+    const usdPrice = formatUSD(price, usd_price)
+    const listedFor = `${price} ($${usdPrice} USD)`
+    fields.push({
+      name: closing_extendable ? 'Auction' : 'Listed For',
+      value: listedFor,
+      inline: true,
+    })
+  }
 
-    // Format highest offer
-    const orderOffer = orders
-      .sort(compareOrders)
-      .reverse()
-      .find((o: any) => asset.owner.address !== o.maker.address)
-    if (orderOffer) {
-      const { base_price, payment_token_contract } = orderOffer
-      const { decimals, symbol, usd_price } = payment_token_contract
-      const price = formatAmount(base_price, decimals, symbol)
-      const usdPrice = formatUSD(price, usd_price)
-      const highestOffer = `${price} ($${usdPrice} USD)`
-      fields.push({
-        name: 'Highest Offer',
-        value: highestOffer,
-        inline: true,
-      })
-    }
+  // Format highest offer
+  const offer = await fetchHighestOffer(tokenId, asset.owner.address, log)
+  if (offer) {
+    const { base_price, payment_token_contract } = offer
+    const { decimals, symbol, usd_price } = payment_token_contract
+    const price = formatAmount(base_price, decimals, symbol)
+    const usdPrice = formatUSD(price, usd_price)
+    const highestOffer = `${price} ($${usdPrice} USD)`
+    fields.push({
+      name: 'Highest Offer',
+      value: highestOffer,
+      inline: true,
+    })
   }
 
   return new MessageEmbed()
@@ -363,7 +381,6 @@ const sendMessage = async (channel: Channel | any, embed: MessageEmbed) => {
 const setupRandomIntervals = async (client: Client) => {
   if (!RANDOM_INTERVALS) return
   const intervals = RANDOM_INTERVALS.split(',')
-  console.log(separator)
   for (const interval of intervals) {
     const [channelId, minutesStr] = interval.split('=')
     const minutes = Number(minutesStr)
@@ -401,6 +418,7 @@ async function main() {
     console.log(separator)
     console.log(`Logged in as ${client?.user?.tag}!`)
     console.log('Listening for messages...')
+    console.log(separator)
     await setupRandomIntervals(client)
   })
 
