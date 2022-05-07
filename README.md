@@ -1,4 +1,4 @@
-# discord-nft-bot
+# discord-nft-embed-bot
 
 A [discord.js](https://discord.js.org/) bot that listens to messages in channels and replies with items from an nft collection.
 
