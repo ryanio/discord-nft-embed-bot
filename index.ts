@@ -59,10 +59,9 @@ export const formatUSD = (price: string, usdPrice: string) => {
 
 /**
  * Returns a shortened version of a full ethereum address
- * (e.g. 0x38a16...c7eb3)
+ * (e.g. 0x38a16…c7eb3)
  */
-const shortAddr = (addr: string) =>
-  addr.slice(0, 7) + '...' + addr.slice(37, 42)
+const shortAddr = (addr: string) => addr.slice(0, 7) + '…' + addr.slice(37, 42)
 
 /**
  * Returns a random number specified by params, min and mix included.
@@ -135,7 +134,7 @@ const sortPriceASC = (a: any, b: any) => {
  * Fetch functions
  */
 const fetchAsset = async (tokenId: number, log: Log): Promise<any> => {
-  log.push(`Fetching #${tokenId}`)
+  log.push(`Fetching #${tokenId}…`)
   try {
     const response = await fetch(opensea.asset(tokenId), opensea.getOpts)
     if (!response.ok) {
@@ -417,7 +416,7 @@ async function main() {
   client.on('ready', async () => {
     console.log(separator)
     console.log(`Logged in as ${client?.user?.tag}!`)
-    console.log('Listening for messages...')
+    console.log('Listening for messages…')
     console.log(separator)
     await setupRandomIntervals(client)
   })
