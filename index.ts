@@ -95,7 +95,9 @@ const addrForOpenseaUsername = async (username: string, log: Log) => {
     if (!response.ok) {
       log.push(
         `Fetch Error - ${response.status}: ${response.statusText}`,
-        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+        DEBUG === 'true'
+          ? `DEBUG: ${JSON.stringify(await response.text())}`
+          : ''
       )
       return
     }
@@ -140,7 +142,9 @@ const fetchAsset = async (tokenId: number, log: Log): Promise<any> => {
     if (!response.ok) {
       log.push(
         `Fetch Error - ${response.status}: ${response.statusText}`,
-        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+        DEBUG === 'true'
+          ? `DEBUG: ${JSON.stringify(await response.text())}`
+          : ''
       )
       return
     }
@@ -169,7 +173,9 @@ const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
     if (!response.ok) {
       log.push(
         `Fetch Error - ${response.status}: ${response.statusText}`,
-        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+        DEBUG === 'true'
+          ? `DEBUG: ${JSON.stringify(await response.text())}`
+          : ''
       )
       return
     }
@@ -196,7 +202,9 @@ const fetchHighestOffer = async (
     if (!response.ok) {
       log.push(
         `Fetch Error (Offers) - ${response.status}: ${response.statusText}`,
-        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+        DEBUG === 'true'
+          ? `DEBUG: ${JSON.stringify(await response.text())}`
+          : ''
       )
       return
     }
@@ -221,7 +229,9 @@ const fetchLowestListing = async (
     if (!response.ok) {
       log.push(
         `Fetch Error (Listings) - ${response.status}: ${response.statusText}`,
-        DEBUG ? `DEBUG: ${JSON.stringify(await response.text())}` : ''
+        DEBUG === 'true'
+          ? `DEBUG: ${JSON.stringify(await response.text())}`
+          : ''
       )
       return
     }
