@@ -80,8 +80,6 @@ If your discord bot is not able to post messages ensure it is added to the chann
 
 #### Running on a server
 
-I recommend to use DigitalOcean over Heroku for improved stability. Heroku servers can restart (cycle) which can lead to missed messages.
-
 My preferred setup is a $5/month Basic Droplet with Ubuntu. Install Node v16 and yarn, clone this repo, cd into it, run `yarn`, install [pm2](https://pm2.keymetrics.io/) with `yarn global add pm2`, set env vars, run `pm2 start yarn -- start`. Monitor with `pm2 list` and `pm2 logs`. Add log rotation module to keep default max 10mb of logs with `pm2 install pm2-logrotate`. To respawn after reboot, set your env vars in `/etc/profile`, then run `pm2 startup` and `pm2 save`.
 
 You can support this repository (and get a promotional discount) by using the referral badge below:
