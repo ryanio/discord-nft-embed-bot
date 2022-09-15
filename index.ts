@@ -210,7 +210,7 @@ const fetchHighestOffer = async (
     }
     const result = await response.json()
     return result.offers
-      .sort(sortPriceASC)
+      ?.sort(sortPriceASC)
       .reverse()
       .find((o: any) => o.maker.address !== owner)
   } catch (error) {
@@ -237,7 +237,7 @@ const fetchLowestListing = async (
     }
     const result = await response.json()
     return result.listings
-      .sort(sortPriceASC)
+      ?.sort(sortPriceASC)
       .find((l: any) => l.maker.address === owner)
   } catch (error) {
     log.push(`Fetch Error (Listings): ${error?.message ?? error}`)
@@ -277,14 +277,13 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   if (!asset) return
 
   // Format owner
-  if (asset.owner) {
-    const name = asset.owner.user?.username ?? shortAddr(asset.owner.address)
-    fields.push({
-      name: 'Owner',
-      value: name,
-      inline: true,
-    })
-  }
+  const { owner } = asset.top_ownerships[0]
+  const name = owner.user?.username ?? shortAddr(owner.address)
+  fields.push({
+    name: 'Owner',
+    value: name,
+    inline: true,
+  })
 
   // Format last sale
   if (asset.last_sale) {
@@ -301,7 +300,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   }
 
   // Format lowest list price
-  const listing = await fetchLowestListing(tokenId, asset.owner.address, log)
+  const listing = await fetchLowestListing(tokenId, owner.address, log)
   if (listing) {
     const { base_price, payment_token_contract, closing_extendable } = listing
     const { decimals, symbol, usd_price } = payment_token_contract
@@ -316,7 +315,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   }
 
   // Format highest offer
-  const offer = await fetchHighestOffer(tokenId, asset.owner.address, log)
+  const offer = await fetchHighestOffer(tokenId, owner.address, log)
   if (offer) {
     const { base_price, payment_token_contract } = offer
     const { decimals, symbol, usd_price } = payment_token_contract
