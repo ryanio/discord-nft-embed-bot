@@ -18,6 +18,7 @@ const {
   MAX_TOKEN_ID,
   RANDOM_INTERVALS,
   DEBUG,
+  CUSTOM_DESCRIPTION,
 } = process.env
 
 /**
@@ -329,12 +330,16 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     })
   }
 
+  // Format custom description
+  const description = CUSTOM_DESCRIPTION.replace('{id}', tokenId.toString())
+
   return new MessageEmbed()
     .setColor('#5296d5')
     .setTitle(`${TOKEN_NAME} #${tokenId}`)
     .setURL(opensea.permalink(tokenId))
     .setFields(fields)
     .setImage(imageForAsset(asset))
+    .setDescription(description)
 }
 
 const matches = async (message: any, log: Log) => {
