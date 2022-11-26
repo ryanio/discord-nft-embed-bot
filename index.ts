@@ -331,7 +331,10 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   }
 
   // Format custom description
-  const description = CUSTOM_DESCRIPTION.replace('{id}', tokenId.toString())
+  const description = (CUSTOM_DESCRIPTION ?? '').replace(
+    '{id}',
+    tokenId.toString()
+  )
 
   return new MessageEmbed()
     .setColor('#5296d5')
