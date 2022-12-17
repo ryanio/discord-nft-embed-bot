@@ -114,7 +114,7 @@ const addrForOpenseaUsername = async (username: string, log: Log) => {
 }
 
 const imageForAsset = (asset: any) => {
-  return asset.image_url.replace(/w=(\d)*/, 'w=3000')
+  return asset.image_url
 }
 
 const sortPriceASC = (a: any, b: any) => {
