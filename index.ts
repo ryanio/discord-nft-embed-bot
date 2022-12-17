@@ -114,12 +114,7 @@ const addrForOpenseaUsername = async (username: string, log: Log) => {
 }
 
 const imageForAsset = (asset: any) => {
-  // Format ipfs:// urls to https://ipfs.io/ipfs/
-  if (asset.image_original_url.slice(0, 7) === 'ipfs://') {
-    const hash = asset.image_original_url.slice(7)
-    return `https://ipfs.io/ipfs/${hash}`
-  }
-  return asset.image_original_url
+  return asset.image_url.replace(/w=(\d)*/, 'w=3000')
 }
 
 const sortPriceASC = (a: any, b: any) => {
