@@ -86,7 +86,6 @@ const opensea = {
   user: (username: string) => `${opensea.api}user/${username}/`,
   offers: (tokenId: number) => `${opensea.asset(tokenId)}offers`,
   listings: (tokenId: number) => `${opensea.asset(tokenId)}listings`,
-  permalink: (tokenId: number) => `${opensea.collection}/${tokenId}`,
 }
 
 const addrForOpenseaUsername = async (username: string, log: Log) => {
@@ -334,7 +333,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   return new MessageEmbed()
     .setColor('#5296d5')
     .setTitle(`${TOKEN_NAME} #${tokenId}`)
-    .setURL(opensea.permalink(tokenId))
+    .setURL(asset.permalink)
     .setFields(fields)
     .setImage(imageForAsset(asset))
     .setDescription(description)
