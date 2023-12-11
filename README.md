@@ -4,15 +4,13 @@ A [discord.js](https://discord.js.org/) bot that listens to messages in channels
 
 Originally developed for [@dutchtide](https://twitter.com/dutchtide)'s [𝕄𝕚𝕕𝕟𝕚𝕘𝕙𝕥 夏季 𝔹𝕣𝕖𝕖𝕫𝕖](https://opensea.io/collection/midnightbreeze) collection.
 
-An OpenSea API key is needed - [request one here](https://docs.opensea.io/reference/request-an-api-key).
+An OpenSea API key is needed - create one in your account.
 
 To run multiple instances of this bot at once check out [bot-runner](https://github.com/ryanio/bot-runner). Also check out [opensea-activity-bot](https://github.com/ryanio/opensea-activity-bot).
 
 ## Supported syntax
 
 - `#1234`
-- `#ensname.eth`
-- `#openseaUsername`
 - `#random` or `#rand` or `#?`
 
 Example reply:
@@ -52,10 +50,11 @@ Please define the following env variables for the repository to work as intended
 
 - `DISCORD_TOKEN`
 - `OPENSEA_API_TOKEN`
-- `INFURA_PROJECT_ID`
 
 #### Project-specific
 
+- `CHAIN`
+  - Value from [OpenSea Supported Chains](https://docs.opensea.io/reference/supported-chains). Defaults to `ethereum`.
 - `TOKEN_NAME`
 - `TOKEN_ADDRESS`
 - `MIN_TOKEN_ID`

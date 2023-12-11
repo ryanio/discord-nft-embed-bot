@@ -1,9 +1,11 @@
-import { URLSearchParams } from 'url'
-import fetch from 'node-fetch'
-import { Client, Intents, MessageEmbed, Channel } from 'discord.js'
-import { FixedNumber, providers, utils } from 'ethers'
-
-const { commify, formatUnits } = utils
+import {
+  Client,
+  GatewayIntentBits,
+  EmbedBuilder,
+  Channel,
+  Partials,
+} from 'discord.js'
+import { FixedNumber, formatUnits } from 'ethers'
 
 type Log = string[]
 const separator = '-'.repeat(60)
@@ -11,7 +13,6 @@ const separator = '-'.repeat(60)
 const {
   DISCORD_TOKEN,
   OPENSEA_API_TOKEN,
-  INFURA_PROJECT_ID,
   TOKEN_NAME,
   TOKEN_ADDRESS,
   MIN_TOKEN_ID,
@@ -21,14 +22,32 @@ const {
   CUSTOM_DESCRIPTION,
 } = process.env
 
+let { CHAIN } = process.env
+CHAIN ??= 'ethereum'
+
+/**
+ * Formats string value with commas.
+ */
+function commify(value: string) {
+  const match = value.match(/^(-?)([0-9]*)(\.?)([0-9]*)$/)
+  if (!match || (!match[2] && !match[4])) {
+    throw new Error(`bad formatted number: ${JSON.stringify(value)}`)
+  }
+
+  const neg = match[1]
+  const whole = BigInt(match[2] || 0).toLocaleString('en-us')
+  const frac = match[4] ? match[4].match(/^(.*?)0*$/)[1] : '0'
+
+  return `${neg}${whole}.${frac}`
+}
+
+export const permalink = (tokenId: number) =>
+  `https://opensea.io/assets/${CHAIN}/${TOKEN_ADDRESS}}/${tokenId}`
+
 /**
  * Formats amount, decimals, and symbols to final string output.
  */
-export const formatAmount = (
-  amount: number,
-  decimals: number,
-  symbol: string
-) => {
+const formatAmount = (amount: number, decimals: number, symbol: string) => {
   let value = formatUnits(amount, decimals)
   const split = value.split('.')
   if (split[1].length > 4) {
@@ -44,10 +63,10 @@ export const formatAmount = (
 /**
  * Formats price and usdPrice to final string output.
  */
-export const formatUSD = (price: string, usdPrice: string) => {
+const formatUSD = (price: string, usdPrice: string) => {
   let value = commify(
-    FixedNumber.from(price.split(' ')[0])
-      .mulUnsafe(FixedNumber.from(usdPrice))
+    FixedNumber.fromString(price.split(' ')[0])
+      .mulUnsafe(FixedNumber.fromString(usdPrice))
       .toUnsafeFloat()
       .toFixed(2)
   )
@@ -78,62 +97,106 @@ const opensea = {
     method: 'GET',
     headers: { Accept: 'application/json', 'X-API-KEY': OPENSEA_API_TOKEN },
   } as any,
-  api: 'https://api.opensea.io/api/v1/',
-  collection: `https://opensea.io/assets/${TOKEN_ADDRESS}`,
-  assets: () => `${opensea.api}assets/`,
-  asset: (tokenId: number) =>
-    `${opensea.api}asset/${TOKEN_ADDRESS}/${tokenId}/`,
-  user: (username: string) => `${opensea.api}user/${username}/`,
-  offers: (tokenId: number) => `${opensea.asset(tokenId)}offers`,
-  listings: (tokenId: number) => `${opensea.asset(tokenId)}listings`,
+  api: 'https://api.opensea.io/api/v2/',
+  getAccount: (address: string) => `${opensea.api}accounts/${address}`,
+  getNFT: (tokenId: number) =>
+    `${opensea.api}chain/${CHAIN}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}`,
+  getContract: () => `${opensea.api}chain/${CHAIN}/contract/${TOKEN_ADDRESS}`,
+  getBestOffer: (tokenId: number) =>
+    `${opensea.api}offers/collection/${cachedCollectionSlug}/nfts/${tokenId}/best`,
+  getBestListing: (tokenId: number) =>
+    `${opensea.api}listings/collection/${cachedCollectionSlug}/nfts/${tokenId}/best`,
+  getEvents: (tokenId: number) =>
+    `${opensea.api}events/chain/${CHAIN}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}}`,
 }
 
-const addrForOpenseaUsername = async (username: string, log: Log) => {
-  log.push(`Fetching OpenSea username: ${username}`)
-  try {
-    const response = await fetch(opensea.user(username), opensea.getOpts)
-    if (!response.ok) {
-      log.push(
-        `Fetch Error - ${response.status}: ${response.statusText}`,
-        DEBUG === 'true'
-          ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : ''
-      )
-      return
-    }
-    const user = await response.json()
-    if (!user.account?.address) {
-      log.push('Skipping, no user found')
-      return
-    }
-    return user.account.address
-  } catch (error) {
-    log.push(`Fetch Error: ${error?.message ?? error}`)
-  }
-}
-
-const imageForAsset = (asset: any) => {
-  return asset.image_url.replace(/w=(\d)*/, 'w=1000')
-}
-
-const sortPriceASC = (a: any, b: any) => {
-  const usdPrice = (order: any) => {
-    const { base_price, payment_token_contract } = order
-    const { decimals, symbol, usd_price } = payment_token_contract
-    const price = formatAmount(base_price, decimals, symbol)
-    const usdPrice = formatUSD(price, usd_price)
-    return Number(usdPrice.replace(/,/g, ''))
-  }
-  return usdPrice(a) - usdPrice(b)
+const imageForNFT = (nft: any) => {
+  return nft.image_url.replace(/w=(\d)*/, 'w=1000')
 }
 
 /**
  * Fetch functions
  */
-const fetchAsset = async (tokenId: number, log: Log): Promise<any> => {
+let cachedCollectionSlug
+const fetchCollectionSlug = async (address: string, chain = CHAIN) => {
+  if (cachedCollectionSlug) {
+    return cachedCollectionSlug
+  }
+  console.log(`Getting collection slug for ${address} on chain ${chain}…`)
+  try {
+    const response = await fetch(opensea.getContract(), opensea.getOpts)
+    if (!response.ok) {
+      console.error(
+        `Fetch Error - ${response.status}: ${response.statusText}`,
+        DEBUG === 'true'
+          ? `DEBUG: ${JSON.stringify(await response.text())}`
+          : ''
+      )
+      return
+    }
+    const result = await response.json()
+    console.log(`Got collection slug: ${result.collection}`)
+    cachedCollectionSlug = result.collection
+    return cachedCollectionSlug
+  } catch (error) {
+    console.error(`Fetch Error: ${error?.message ?? error}`)
+  }
+}
+
+const fetchAccount = async (address: string, log: Log) => {
+  log.push(`Fetching account for ${address}…`)
+  try {
+    const response = await fetch(opensea.getAccount(address), opensea.getOpts)
+    if (!response.ok) {
+      log.push(
+        `Fetch Error - ${response.status}: ${response.statusText}`,
+        DEBUG === 'true'
+          ? `DEBUG: ${JSON.stringify(await response.text())}`
+          : ''
+      )
+      return
+    }
+    const account = await response.json()
+    if (!account) {
+      log.push('Skipping, no account found')
+      return
+    }
+    return account
+  } catch (error) {
+    log.push(`Fetch Error: ${error?.message ?? error}`)
+  }
+}
+
+const fetchLastSale = async (tokenId: number, log: Log): Promise<any> => {
+  log.push(`Fetching last sale for #${tokenId}…`)
+  try {
+    const url = `${opensea.getEvents(tokenId)}?event_type=sale`
+    const response = await fetch(url, opensea.getOpts)
+    if (!response.ok) {
+      log.push(
+        `Fetch Error - ${response.status}: ${response.statusText}`,
+        DEBUG === 'true'
+          ? `DEBUG: ${JSON.stringify(await response.text())}`
+          : ''
+      )
+      return
+    }
+    const result = await response.json()
+    const events = result.asset_events
+    if (!events) {
+      log.push('Skipping, no events found')
+      return
+    }
+    return events[0]
+  } catch (error) {
+    log.push(`Fetch Error: ${error?.message ?? error}`)
+  }
+}
+
+const fetchNFT = async (tokenId: number, log: Log): Promise<any> => {
   log.push(`Fetching #${tokenId}…`)
   try {
-    const response = await fetch(opensea.asset(tokenId), opensea.getOpts)
+    const response = await fetch(opensea.getNFT(tokenId), opensea.getOpts)
     if (!response.ok) {
       log.push(
         `Fetch Error - ${response.status}: ${response.statusText}`,
@@ -143,56 +206,20 @@ const fetchAsset = async (tokenId: number, log: Log): Promise<any> => {
       )
       return
     }
-    const asset = await response.json()
-    if (!asset.token_id) {
-      log.push('Skipping, no asset found')
+    const result = await response.json()
+    if (!result) {
+      log.push('Skipping, no NFT found')
       return
     }
-    return asset
+    return result.nft
   } catch (error) {
     log.push(`Fetch Error: ${error?.message ?? error}`)
   }
 }
 
-const fetchRandomAssetByAddr = async (addr: string, log: Log) => {
-  const params = new URLSearchParams({
-    asset_contract_address: TOKEN_ADDRESS,
-    owner: addr,
-  } as any)
-  log.push(`Fetching random asset owned by: ${addr}`)
+const fetchBestOffer = async (tokenId: number, log: Log): Promise<any> => {
   try {
-    const response = await fetch(
-      `${opensea.assets()}?${params}`,
-      opensea.getOpts
-    )
-    if (!response.ok) {
-      log.push(
-        `Fetch Error - ${response.status}: ${response.statusText}`,
-        DEBUG === 'true'
-          ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : ''
-      )
-      return
-    }
-    const { assets } = await response.json()
-    if (!assets || assets.length === 0) {
-      log.push(`Skipping, no tokens found for address ${addr}`)
-      return
-    }
-    const rand = random(0, assets.length - 1)
-    return Number(assets[rand].token_id)
-  } catch (error) {
-    log.push(`Fetch Error: ${error?.message ?? error}`)
-  }
-}
-
-const fetchHighestOffer = async (
-  tokenId: number,
-  owner: string,
-  log: Log
-): Promise<any> => {
-  try {
-    const url = opensea.offers(tokenId)
+    const url = opensea.getBestOffer(tokenId)
     const response = await fetch(url, opensea.getOpts)
     if (!response.ok) {
       log.push(
@@ -204,22 +231,15 @@ const fetchHighestOffer = async (
       return
     }
     const result = await response.json()
-    return result.offers
-      ?.sort(sortPriceASC)
-      .reverse()
-      .find((o: any) => o.maker.address !== owner)
+    return result
   } catch (error) {
     log.push(`Fetch Error (Offers): ${error?.message ?? error}`)
   }
 }
 
-const fetchLowestListing = async (
-  tokenId: number,
-  owner: string,
-  log: Log
-): Promise<any> => {
+const fetchBestListing = async (tokenId: number, log: Log): Promise<any> => {
   try {
-    const url = opensea.listings(tokenId)
+    const url = opensea.getBestListing(tokenId)
     const response = await fetch(url, opensea.getOpts)
     if (!response.ok) {
       log.push(
@@ -231,27 +251,10 @@ const fetchLowestListing = async (
       return
     }
     const result = await response.json()
-    return result.listings
-      ?.sort(sortPriceASC)
-      .find((l: any) => l.maker.address === owner)
+    return result
   } catch (error) {
     log.push(`Fetch Error (Listings): ${error?.message ?? error}`)
   }
-}
-
-/**
- * ENS
- */
-const provider = new providers.InfuraProvider('mainnet', INFURA_PROJECT_ID)
-
-const addrForENSName = async (name: string, log: Log) => {
-  log.push(`Fetching ens name: ${name}`)
-  const result = await provider.resolveName(name)
-  if (!result) {
-    log.push(`Skipping, no address found for ${name}`)
-    return
-  }
-  return result
 }
 
 /**
@@ -268,61 +271,58 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   }
 
   const fields: any[] = []
-  const asset = await fetchAsset(tokenId, log)
-  if (!asset) return
+  const nft = await fetchNFT(tokenId, log)
+  if (!nft) return
 
   // Format owner
-  const { owner } = asset.top_ownerships[0]
-  const name = owner.user?.username ?? shortAddr(owner.address)
-  fields.push({
-    name: 'Owner',
-    value: name,
-    inline: true,
-  })
+  if (nft.owners?.length > 0) {
+    const owner = nft.owners[0]
+    const username = (await fetchAccount(owner.address, log))?.username
+    const name = username ?? shortAddr(owner.address)
+    fields.push({
+      name: 'Owner',
+      value: name,
+      inline: true,
+    })
+  }
 
   // Format last sale
-  if (asset.last_sale) {
-    const { total_price, payment_token } = asset.last_sale
-    const { decimals, symbol, usd_price } = payment_token
-    const price = formatAmount(total_price, decimals, symbol)
-    const usdPrice = formatUSD(price, usd_price)
-    const lastSale = `${price} ($${usdPrice} USD)`
+  const lastSale = await fetchLastSale(tokenId, log)
+  if (lastSale) {
+    const { quantity, decimals, symbol } = lastSale.payment
+    const price = formatAmount(quantity.toString(), decimals, symbol)
     fields.push({
       name: 'Last Sale',
-      value: lastSale,
+      value: price,
       inline: true,
     })
   }
 
   // Format lowest list price
-  const listing = await fetchLowestListing(tokenId, owner.address, log)
-  if (listing) {
-    const { base_price, payment_token_contract, closing_extendable } = listing
-    const { decimals, symbol, usd_price } = payment_token_contract
-    const price = formatAmount(base_price, decimals, symbol)
-    const usdPrice = formatUSD(price, usd_price)
-    const listedFor = `${price} ($${usdPrice} USD)`
+  const listing = await fetchBestListing(tokenId, log)
+  if (Object.keys(listing).length > 0) {
+    const { value, decimals, currency } = listing.price.current
+    const price = formatAmount(value, decimals, currency)
     fields.push({
-      name: closing_extendable ? 'Auction' : 'Listed For',
-      value: listedFor,
+      name: listing.type === 'basic' ? 'Listed For' : 'Auction',
+      value: price,
       inline: true,
     })
   }
 
   // Format highest offer
-  const offer = await fetchHighestOffer(tokenId, owner.address, log)
-  if (offer) {
-    const { base_price, payment_token_contract } = offer
-    const { decimals, symbol, usd_price } = payment_token_contract
-    const price = formatAmount(base_price, decimals, symbol)
-    const usdPrice = formatUSD(price, usd_price)
-    const highestOffer = `${price} ($${usdPrice} USD)`
+  /* Waiting for OpenSea to add offer.price
+  const offer = await fetchBestOffer(tokenId, log)
+  if (Object.keys(offer).length > 0) {
+    const { value, decimals, currency } = offer.price
+    const price = formatAmount(value, decimals, currency)
     fields.push({
       name: 'Highest Offer',
-      value: highestOffer,
+      value: price,
       inline: true,
     })
   }
+  */
 
   // Format custom description
   const description = (CUSTOM_DESCRIPTION ?? '').replace(
@@ -330,18 +330,18 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     tokenId.toString()
   )
 
-  return new MessageEmbed()
+  return new EmbedBuilder()
     .setColor('#5296d5')
     .setTitle(`${TOKEN_NAME} #${tokenId}`)
-    .setURL(asset.permalink)
+    .setURL(permalink(nft.identifier))
     .setFields(fields)
-    .setImage(imageForAsset(asset))
+    .setImage(imageForNFT(nft))
     .setDescription(description)
 }
 
 const matches = async (message: any, log: Log) => {
   const matches = []
-  const regex = /#(random|rand|\?|\d*|[\w.\-]*.eth|[\w.\-]*)(\s|\n|\W|$)/g
+  const regex = /#(random|rand|\?|\d*)(\s|\n|\W|$)/g
   let match = regex.exec(message.content)
   if (match !== null) {
     log.push(
@@ -358,20 +358,6 @@ const matches = async (message: any, log: Log) => {
     } else if (/^[0-9]+/.test(id)) {
       // matches: number digits (token id)
       matches.push(Number(id))
-    } else if (/\w*\.eth/.test(id)) {
-      // matches: .eth name
-      const addr = await addrForENSName(id, log)
-      if (addr) {
-        const tokenId = await fetchRandomAssetByAddr(addr, log)
-        if (tokenId) matches.push(tokenId)
-      }
-    } else if (/\w*/.test(id)) {
-      // matches: opensea username
-      const addr = await addrForOpenseaUsername(id, log)
-      if (addr) {
-        const tokenId = await fetchRandomAssetByAddr(addr, log)
-        if (tokenId) matches.push(tokenId)
-      }
     } else {
       log.push(`Skipping, could not understand input: ${id}`)
     }
@@ -384,7 +370,7 @@ const channelName = (channel: Channel | any) => {
   return channel.name ?? channel.channelId
 }
 
-const sendMessage = async (channel: Channel | any, embed: MessageEmbed) => {
+const sendMessage = async (channel: Channel | any, embed: EmbedBuilder) => {
   await channel.send({ embeds: [embed] })
 }
 
@@ -420,9 +406,18 @@ const setupRandomIntervals = async (client: Client) => {
 
 async function main() {
   const client = new Client({
-    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES],
-    partials: ['MESSAGE'],
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent,
+    ],
+    partials: [Partials.Message],
   })
+
+  const slug = await fetchCollectionSlug(TOKEN_ADDRESS, CHAIN)
+  if (!slug) {
+    throw new Error('Could not find collection slug')
+  }
 
   client.on('ready', async () => {
     console.log(separator)
@@ -436,26 +431,26 @@ async function main() {
     if (message.author.bot) return
 
     const log: Log = []
-    try {
-      const tokenIds = await matches(message, log)
+    // try {
+    const tokenIds = await matches(message, log)
 
-      const embeds = []
-      let embedLog = 'Replied with'
+    const embeds = []
+    let embedLog = 'Replied with'
 
-      for (const tokenId of tokenIds.slice(0, 5)) {
-        const embed = await messageEmbed(tokenId, log)
-        if (embed) {
-          embeds.push(embed)
-          embedLog += ` #${tokenId}`
-        }
+    for (const tokenId of tokenIds.slice(0, 5)) {
+      const embed = await messageEmbed(tokenId, log)
+      if (embed) {
+        embeds.push(embed)
+        embedLog += ` #${tokenId}`
       }
-      if (embeds.length > 0) {
-        await message.reply({ embeds })
-        log.push(embedLog)
-      }
-    } catch (error) {
-      log.push(`Error: ${error}`)
     }
+    if (embeds.length > 0) {
+      await message.reply({ embeds })
+      log.push(embedLog)
+    }
+    // } catch (error) {
+    //   log.push(`Error: ${error}`)
+    // }
     if (log.length > 0) {
       log.push(separator)
       for (const l of log) {
