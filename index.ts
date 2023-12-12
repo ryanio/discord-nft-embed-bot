@@ -26,19 +26,22 @@ let { CHAIN } = process.env
 CHAIN ??= 'ethereum'
 
 /**
- * Formats string value with commas.
- */
-function commify(value: string) {
-  const match = value.match(/^(-?)([0-9]*)(\.?)([0-9]*)$/)
-  if (!match || (!match[2] && !match[4])) {
-    throw new Error(`bad formatted number: ${JSON.stringify(value)}`)
+ * Processes an OpenSea user object and returns, in order:
+ * 1. An OpenSea username
+ * 2. A short formatted address
+ * */
+const cachedUsernames: { [key: string]: string } = {}
+export const username = async (address: string, log: Log) => {
+  if (address in cachedUsernames) {
+    return cachedUsernames[address]
   }
-
-  const neg = match[1]
-  const whole = BigInt(match[2] || 0).toLocaleString('en-us')
-  const frac = match[4] ? match[4].match(/^(.*?)0*$/)[1] : '0'
-
-  return `${neg}${whole}.${frac}`
+  const account = await fetchAccount(address, log)
+  const username = account?.username
+  if (username && username !== '') {
+    cachedUsernames[address] = username
+    return username
+  }
+  return shortAddr(address)
 }
 
 export const permalink = (tokenId: number) =>
@@ -260,8 +263,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   // Format owner
   if (nft.owners?.length > 0) {
     const owner = nft.owners[0]
-    const username = (await fetchAccount(owner.address, log))?.username
-    const name = username ?? shortAddr(owner.address)
+    const name = await username(owner.address, log)
     fields.push({
       name: 'Owner',
       value: name,

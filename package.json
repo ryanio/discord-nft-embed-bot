@@ -10,7 +10,8 @@
   "scripts": {
     "postinstall": "yarn build",
     "build": "npx tsc",
-    "start": "yarn build && node dist/index.js"
+    "start": "node dist/index.js",
+    "start:dev": "ts-node index.ts"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
