@@ -42,13 +42,13 @@ function commify(value: string) {
 }
 
 export const permalink = (tokenId: number) =>
-  `https://opensea.io/assets/${CHAIN}/${TOKEN_ADDRESS}}/${tokenId}`
+  `https://opensea.io/assets/${CHAIN}/${TOKEN_ADDRESS}/${tokenId}`
 
 /**
  * Formats amount, decimals, and symbols to final string output.
  */
 const formatAmount = (amount: number, decimals: number, symbol: string) => {
-  let value = formatUnits(amount, decimals)
+  let value = formatUnits(amount.toString(), decimals)
   const split = value.split('.')
   if (split[1].length > 4) {
     // Trim to 4 decimals max
@@ -58,23 +58,6 @@ const formatAmount = (amount: number, decimals: number, symbol: string) => {
     value = split[0]
   }
   return `${value} ${symbol}`
-}
-
-/**
- * Formats price and usdPrice to final string output.
- */
-const formatUSD = (price: string, usdPrice: string) => {
-  let value = commify(
-    FixedNumber.fromString(price.split(' ')[0])
-      .mulUnsafe(FixedNumber.fromString(usdPrice))
-      .toUnsafeFloat()
-      .toFixed(2)
-  )
-  // Format to 2 decimal places e.g. $1.3 -> $1.30
-  if (value.split('.')[1].length === 1) {
-    value = `${value}0`
-  }
-  return value
 }
 
 /**
@@ -130,7 +113,7 @@ const fetchCollectionSlug = async (address: string, chain = CHAIN) => {
         `Fetch Error - ${response.status}: ${response.statusText}`,
         DEBUG === 'true'
           ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : ''
+          : '',
       )
       return
     }
@@ -152,7 +135,7 @@ const fetchAccount = async (address: string, log: Log) => {
         `Fetch Error - ${response.status}: ${response.statusText}`,
         DEBUG === 'true'
           ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : ''
+          : '',
       )
       return
     }
@@ -177,7 +160,7 @@ const fetchLastSale = async (tokenId: number, log: Log): Promise<any> => {
         `Fetch Error - ${response.status}: ${response.statusText}`,
         DEBUG === 'true'
           ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : ''
+          : '',
       )
       return
     }
@@ -202,7 +185,7 @@ const fetchNFT = async (tokenId: number, log: Log): Promise<any> => {
         `Fetch Error - ${response.status}: ${response.statusText}`,
         DEBUG === 'true'
           ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : ''
+          : '',
       )
       return
     }
@@ -226,7 +209,7 @@ const fetchBestOffer = async (tokenId: number, log: Log): Promise<any> => {
         `Fetch Error (Offers) - ${response.status}: ${response.statusText}`,
         DEBUG === 'true'
           ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : ''
+          : '',
       )
       return
     }
@@ -246,7 +229,7 @@ const fetchBestListing = async (tokenId: number, log: Log): Promise<any> => {
         `Fetch Error (Listings) - ${response.status}: ${response.statusText}`,
         DEBUG === 'true'
           ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : ''
+          : '',
       )
       return
     }
@@ -290,7 +273,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   const lastSale = await fetchLastSale(tokenId, log)
   if (lastSale) {
     const { quantity, decimals, symbol } = lastSale.payment
-    const price = formatAmount(quantity.toString(), decimals, symbol)
+    const price = formatAmount(quantity, decimals, symbol)
     fields.push({
       name: 'Last Sale',
       value: price,
@@ -298,7 +281,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     })
   }
 
-  // Format lowest list price
+  // Format best listing
   const listing = await fetchBestListing(tokenId, log)
   if (Object.keys(listing).length > 0) {
     const { value, decimals, currency } = listing.price.current
@@ -310,24 +293,25 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     })
   }
 
-  // Format highest offer
-  /* Waiting for OpenSea to add offer.price
+  // Format best offer
   const offer = await fetchBestOffer(tokenId, log)
   if (Object.keys(offer).length > 0) {
-    const { value, decimals, currency } = offer.price
-    const price = formatAmount(value, decimals, currency)
-    fields.push({
-      name: 'Highest Offer',
-      value: price,
-      inline: true,
-    })
+    // Skip collection offers since they are repetitive
+    if (!offer.criteria?.collection) {
+      const { value, decimals, currency } = offer.price
+      const price = formatAmount(value, decimals, currency)
+      fields.push({
+        name: 'Best Offer',
+        value: price,
+        inline: true,
+      })
+    }
   }
-  */
 
   // Format custom description
   const description = (CUSTOM_DESCRIPTION ?? '').replace(
     '{id}',
-    tokenId.toString()
+    tokenId.toString(),
   )
 
   return new EmbedBuilder()
@@ -347,7 +331,7 @@ const matches = async (message: any, log: Log) => {
     log.push(
       `${TOKEN_NAME} - Message from ${message.author.username} in #${
         message.channel?.name ?? message.channelId
-      }:\n> ${message.content}`
+      }:\n> ${message.content}`,
     )
   }
   while (match !== null) {
@@ -385,22 +369,25 @@ const setupRandomIntervals = async (client: Client) => {
     console.log(
       `Sending random token every ${
         minutes === 1 ? 'minute' : `${minutes} minutes`
-      } to #${chanName}`
+      } to #${chanName}`,
     )
     console.log(separator)
-    setInterval(async () => {
-      const tokenId = random()
-      const log: Log = []
-      const embed = await messageEmbed(tokenId, log)
-      log.push(`Sending random token to #${chanName}`)
-      await sendMessage(channel, embed)
-      if (log.length > 0) {
-        log.push(separator)
-        for (const l of log) {
-          console.log(l)
+    setInterval(
+      async () => {
+        const tokenId = random()
+        const log: Log = []
+        const embed = await messageEmbed(tokenId, log)
+        log.push(`Sending random token to #${chanName}`)
+        await sendMessage(channel, embed)
+        if (log.length > 0) {
+          log.push(separator)
+          for (const l of log) {
+            console.log(l)
+          }
         }
-      }
-    }, minutes * 60 * 1000)
+      },
+      minutes * 60 * 1000,
+    )
   }
 }
 
