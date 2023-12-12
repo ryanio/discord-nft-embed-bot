@@ -5,80 +5,33 @@ import {
   Channel,
   Partials,
 } from 'discord.js'
-import { FixedNumber, formatUnits } from 'ethers'
-
-type Log = string[]
-const separator = '-'.repeat(60)
+import {
+  Log,
+  chain,
+  formatAmount,
+  imageForNFT,
+  maxTokenId,
+  minTokenId,
+  permalink,
+  random,
+  separator,
+  username,
+} from './utils'
 
 const {
   DISCORD_TOKEN,
   OPENSEA_API_TOKEN,
   TOKEN_NAME,
   TOKEN_ADDRESS,
-  MIN_TOKEN_ID,
-  MAX_TOKEN_ID,
   RANDOM_INTERVALS,
   DEBUG,
   CUSTOM_DESCRIPTION,
 } = process.env
 
-let { CHAIN } = process.env
-CHAIN ??= 'ethereum'
-
-/**
- * Processes an OpenSea user object and returns, in order:
- * 1. An OpenSea username
- * 2. A short formatted address
- * */
-const cachedUsernames: { [key: string]: string } = {}
-export const username = async (address: string, log: Log) => {
-  if (address in cachedUsernames) {
-    return cachedUsernames[address]
-  }
-  const account = await fetchAccount(address, log)
-  const username = account?.username
-  if (username && username !== '') {
-    cachedUsernames[address] = username
-    return username
-  }
-  return shortAddr(address)
-}
-
-export const permalink = (tokenId: number) =>
-  `https://opensea.io/assets/${CHAIN}/${TOKEN_ADDRESS}/${tokenId}`
-
-/**
- * Formats amount, decimals, and symbols to final string output.
- */
-const formatAmount = (amount: number, decimals: number, symbol: string) => {
-  let value = formatUnits(amount.toString(), decimals)
-  const split = value.split('.')
-  if (split[1].length > 4) {
-    // Trim to 4 decimals max
-    value = `${split[0]}.${split[1].slice(0, 5)}`
-  } else if (split[1] === '0') {
-    // If whole number remove '.0'
-    value = split[0]
-  }
-  return `${value} ${symbol}`
-}
-
-/**
- * Returns a shortened version of a full ethereum address
- * (e.g. 0x38a16…c7eb3)
- */
-const shortAddr = (addr: string) => addr.slice(0, 7) + '…' + addr.slice(37, 42)
-
-/**
- * Returns a random number specified by params, min and mix included.
- */
-const random = (min = Number(MIN_TOKEN_ID), max = Number(MAX_TOKEN_ID)) =>
-  Math.floor(Math.random() * (max - min + 1) + min)
-
 /**
  * OpenSea
  */
-const opensea = {
+export const opensea = {
   getOpts: {
     method: 'GET',
     headers: { Accept: 'application/json', 'X-API-KEY': OPENSEA_API_TOKEN },
@@ -86,27 +39,23 @@ const opensea = {
   api: 'https://api.opensea.io/api/v2/',
   getAccount: (address: string) => `${opensea.api}accounts/${address}`,
   getNFT: (tokenId: number) =>
-    `${opensea.api}chain/${CHAIN}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}`,
-  getContract: () => `${opensea.api}chain/${CHAIN}/contract/${TOKEN_ADDRESS}`,
+    `${opensea.api}chain/${chain}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}`,
+  getContract: () => `${opensea.api}chain/${chain}/contract/${TOKEN_ADDRESS}`,
   getBestOffer: (tokenId: number) =>
-    `${opensea.api}offers/collection/${cachedCollectionSlug}/nfts/${tokenId}/best`,
+    `${opensea.api}offers/collection/${collectionSlug}/nfts/${tokenId}/best`,
   getBestListing: (tokenId: number) =>
-    `${opensea.api}listings/collection/${cachedCollectionSlug}/nfts/${tokenId}/best`,
+    `${opensea.api}listings/collection/${collectionSlug}/nfts/${tokenId}/best`,
   getEvents: (tokenId: number) =>
-    `${opensea.api}events/chain/${CHAIN}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}}`,
-}
-
-const imageForNFT = (nft: any) => {
-  return nft.image_url.replace(/w=(\d)*/, 'w=1000')
+    `${opensea.api}events/chain/${chain}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}}`,
 }
 
 /**
  * Fetch functions
  */
-let cachedCollectionSlug
-const fetchCollectionSlug = async (address: string, chain = CHAIN) => {
-  if (cachedCollectionSlug) {
-    return cachedCollectionSlug
+let collectionSlug
+const fetchCollectionSlug = async (address: string) => {
+  if (collectionSlug) {
+    return collectionSlug
   }
   console.log(`Getting collection slug for ${address} on chain ${chain}…`)
   try {
@@ -122,34 +71,10 @@ const fetchCollectionSlug = async (address: string, chain = CHAIN) => {
     }
     const result = await response.json()
     console.log(`Got collection slug: ${result.collection}`)
-    cachedCollectionSlug = result.collection
-    return cachedCollectionSlug
+    collectionSlug = result.collection
+    return collectionSlug
   } catch (error) {
     console.error(`Fetch Error: ${error?.message ?? error}`)
-  }
-}
-
-const fetchAccount = async (address: string, log: Log) => {
-  log.push(`Fetching account for ${address}…`)
-  try {
-    const response = await fetch(opensea.getAccount(address), opensea.getOpts)
-    if (!response.ok) {
-      log.push(
-        `Fetch Error - ${response.status}: ${response.statusText}`,
-        DEBUG === 'true'
-          ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : '',
-      )
-      return
-    }
-    const account = await response.json()
-    if (!account) {
-      log.push('Skipping, no account found')
-      return
-    }
-    return account
-  } catch (error) {
-    log.push(`Fetch Error: ${error?.message ?? error}`)
   }
 }
 
@@ -247,11 +172,7 @@ const fetchBestListing = async (tokenId: number, log: Log): Promise<any> => {
  * Discord MessageEmbed
  */
 const messageEmbed = async (tokenId: number, log: Log) => {
-  if (
-    tokenId < Number(MIN_TOKEN_ID) ||
-    tokenId > Number(MAX_TOKEN_ID) ||
-    Number.isNaN(tokenId)
-  ) {
+  if (tokenId < minTokenId || tokenId > maxTokenId || Number.isNaN(tokenId)) {
     log.push(`Skipping, cannot process #${tokenId}`)
     return
   }
@@ -276,9 +197,17 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   if (lastSale) {
     const { quantity, decimals, symbol } = lastSale.payment
     const price = formatAmount(quantity, decimals, symbol)
+    const date = new Date(lastSale.closing_date * 1000)
+    const formattedDate = new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+    }).format(date)
+    const year = new Intl.DateTimeFormat('en-US', { year: '2-digit' }).format(
+      date,
+    )
     fields.push({
       name: 'Last Sale',
-      value: price,
+      value: `${price} (${formattedDate} '${year})`,
       inline: true,
     })
   }
@@ -317,7 +246,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   )
 
   return new EmbedBuilder()
-    .setColor('#5296d5')
+    .setColor('#121212')
     .setTitle(`${TOKEN_NAME} #${tokenId}`)
     .setURL(permalink(nft.identifier))
     .setFields(fields)
@@ -326,7 +255,7 @@ const messageEmbed = async (tokenId: number, log: Log) => {
 }
 
 const matches = async (message: any, log: Log) => {
-  const matches = []
+  const matches: number[] = []
   const regex = /#(random|rand|\?|\d*)(\s|\n|\W|$)/g
   let match = regex.exec(message.content)
   if (match !== null) {
@@ -403,7 +332,10 @@ async function main() {
     partials: [Partials.Message],
   })
 
-  const slug = await fetchCollectionSlug(TOKEN_ADDRESS, CHAIN)
+  if (!TOKEN_ADDRESS) {
+    throw new Error('TOKEN_ADDRESS is not set')
+  }
+  const slug = await fetchCollectionSlug(TOKEN_ADDRESS)
   if (!slug) {
     throw new Error('Could not find collection slug')
   }
@@ -423,7 +355,7 @@ async function main() {
     // try {
     const tokenIds = await matches(message, log)
 
-    const embeds = []
+    const embeds: EmbedBuilder[] = []
     let embedLog = 'Replied with'
 
     for (const tokenId of tokenIds.slice(0, 5)) {
