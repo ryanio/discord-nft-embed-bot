@@ -12,10 +12,10 @@ import {
   imageForNFT,
   maxTokenId,
   minTokenId,
-  permalink,
   random,
   separator,
   username,
+  openseaGet,
 } from './utils'
 
 const {
@@ -32,7 +32,7 @@ const {
  * OpenSea
  */
 export const opensea = {
-  getOpts: {
+  GET_OPTS: {
     method: 'GET',
     headers: { Accept: 'application/json', 'X-API-KEY': OPENSEA_API_TOKEN },
   } as any,
@@ -58,114 +58,38 @@ const fetchCollectionSlug = async (address: string) => {
     return collectionSlug
   }
   console.log(`Getting collection slug for ${address} on chain ${chain}…`)
-  try {
-    const response = await fetch(opensea.getContract(), opensea.getOpts)
-    if (!response.ok) {
-      console.error(
-        `Fetch Error - ${response.status}: ${response.statusText}`,
-        DEBUG === 'true'
-          ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : '',
-      )
-      return
-    }
-    const result = await response.json()
-    console.log(`Got collection slug: ${result.collection}`)
-    collectionSlug = result.collection
-    return collectionSlug
-  } catch (error) {
-    console.error(`Fetch Error: ${error?.message ?? error}`)
+  const url = opensea.getContract()
+  const log: Log = []
+  const result = openseaGet(url, log)
+  for (const l of log) {
+    console.log(l)
   }
+  return result
 }
 
 const fetchLastSale = async (tokenId: number, log: Log): Promise<any> => {
   log.push(`Fetching last sale for #${tokenId}…`)
-  try {
-    const url = `${opensea.getEvents(tokenId)}?event_type=sale`
-    const response = await fetch(url, opensea.getOpts)
-    if (!response.ok) {
-      log.push(
-        `Fetch Error - ${response.status}: ${response.statusText}`,
-        DEBUG === 'true'
-          ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : '',
-      )
-      return
-    }
-    const result = await response.json()
-    const events = result.asset_events
-    if (!events) {
-      log.push('Skipping, no events found')
-      return
-    }
-    return events[0]
-  } catch (error) {
-    log.push(`Fetch Error: ${error?.message ?? error}`)
-  }
+  const url = `${opensea.getEvents(tokenId)}?event_type=sale`
+  const result = await openseaGet(url, log)
+  return result.asset_events ?? []
 }
 
 const fetchNFT = async (tokenId: number, log: Log): Promise<any> => {
   log.push(`Fetching #${tokenId}…`)
-  try {
-    const response = await fetch(opensea.getNFT(tokenId), opensea.getOpts)
-    if (!response.ok) {
-      log.push(
-        `Fetch Error - ${response.status}: ${response.statusText}`,
-        DEBUG === 'true'
-          ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : '',
-      )
-      return
-    }
-    const result = await response.json()
-    if (!result) {
-      log.push('Skipping, no NFT found')
-      return
-    }
-    return result.nft
-  } catch (error) {
-    log.push(`Fetch Error: ${error?.message ?? error}`)
-  }
+  const url = opensea.getNFT(tokenId)
+  const result = await openseaGet(url, log)
+  return result.nft
 }
 
 const fetchBestOffer = async (tokenId: number, log: Log): Promise<any> => {
-  try {
-    const url = opensea.getBestOffer(tokenId)
-    const response = await fetch(url, opensea.getOpts)
-    if (!response.ok) {
-      log.push(
-        `Fetch Error (Offers) - ${response.status}: ${response.statusText}`,
-        DEBUG === 'true'
-          ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : '',
-      )
-      return
-    }
-    const result = await response.json()
-    return result
-  } catch (error) {
-    log.push(`Fetch Error (Offers): ${error?.message ?? error}`)
-  }
+  const url = opensea.getBestOffer(tokenId)
+  const result = await openseaGet(url, log)
+  return result
 }
 
 const fetchBestListing = async (tokenId: number, log: Log): Promise<any> => {
-  try {
-    const url = opensea.getBestListing(tokenId)
-    const response = await fetch(url, opensea.getOpts)
-    if (!response.ok) {
-      log.push(
-        `Fetch Error (Listings) - ${response.status}: ${response.statusText}`,
-        DEBUG === 'true'
-          ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : '',
-      )
-      return
-    }
-    const result = await response.json()
-    return result
-  } catch (error) {
-    log.push(`Fetch Error (Listings): ${error?.message ?? error}`)
-  }
+  const url = opensea.getBestListing(tokenId)
+  return openseaGet(url, log)
 }
 
 /**
@@ -245,13 +169,19 @@ const messageEmbed = async (tokenId: number, log: Log) => {
     tokenId.toString(),
   )
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor('#121212')
     .setTitle(`${TOKEN_NAME} #${tokenId}`)
-    .setURL(permalink(nft.identifier))
+    .setURL(nft.opensea_url)
     .setFields(fields)
-    .setImage(imageForNFT(nft))
     .setDescription(description)
+
+  const image = imageForNFT(nft)
+  if (image) {
+    embed.setImage(image)
+  }
+
+  return embed
 }
 
 const matches = async (message: any, log: Log) => {
@@ -352,26 +282,26 @@ async function main() {
     if (message.author.bot) return
 
     const log: Log = []
-    // try {
-    const tokenIds = await matches(message, log)
+    try {
+      const tokenIds = await matches(message, log)
 
-    const embeds: EmbedBuilder[] = []
-    let embedLog = 'Replied with'
+      const embeds: EmbedBuilder[] = []
+      let embedLog = 'Replied with'
 
-    for (const tokenId of tokenIds.slice(0, 5)) {
-      const embed = await messageEmbed(tokenId, log)
-      if (embed) {
-        embeds.push(embed)
-        embedLog += ` #${tokenId}`
+      for (const tokenId of tokenIds.slice(0, 5)) {
+        const embed = await messageEmbed(tokenId, log)
+        if (embed) {
+          embeds.push(embed)
+          embedLog += ` #${tokenId}`
+        }
       }
+      if (embeds.length > 0) {
+        await message.reply({ embeds })
+        log.push(embedLog)
+      }
+    } catch (error) {
+      log.push(`Error: ${error}`)
     }
-    if (embeds.length > 0) {
-      await message.reply({ embeds })
-      log.push(embedLog)
-    }
-    // } catch (error) {
-    //   log.push(`Error: ${error}`)
-    // }
     if (log.length > 0) {
       log.push(separator)
       for (const l of log) {
