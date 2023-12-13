@@ -24,7 +24,6 @@ const {
   TOKEN_NAME,
   TOKEN_ADDRESS,
   RANDOM_INTERVALS,
-  DEBUG,
   CUSTOM_DESCRIPTION,
 } = process.env
 
@@ -54,24 +53,16 @@ export const opensea = {
  */
 let collectionSlug
 const fetchCollectionSlug = async (address: string) => {
-  if (collectionSlug) {
-    return collectionSlug
-  }
+  if (collectionSlug) return collectionSlug
   console.log(`Getting collection slug for ${address} on chain ${chain}…`)
   const url = opensea.getContract()
   const log: Log = []
-  const result = openseaGet(url, log)
+  const result = await openseaGet(url, log)
   for (const l of log) {
     console.log(l)
   }
-  return result
-}
-
-const fetchLastSale = async (tokenId: number, log: Log): Promise<any> => {
-  log.push(`Fetching last sale for #${tokenId}…`)
-  const url = `${opensea.getEvents(tokenId)}?event_type=sale`
-  const result = await openseaGet(url, log)
-  return result.asset_events ?? []
+  collectionSlug = result.collection
+  return result.collection
 }
 
 const fetchNFT = async (tokenId: number, log: Log): Promise<any> => {
@@ -79,6 +70,12 @@ const fetchNFT = async (tokenId: number, log: Log): Promise<any> => {
   const url = opensea.getNFT(tokenId)
   const result = await openseaGet(url, log)
   return result.nft
+}
+
+const fetchLastSale = async (tokenId: number, log: Log): Promise<any> => {
+  const url = `${opensea.getEvents(tokenId)}?event_type=sale&limit=1`
+  const result = await openseaGet(url, log)
+  return result.asset_events[0]
 }
 
 const fetchBestOffer = async (tokenId: number, log: Log): Promise<any> => {
@@ -89,7 +86,8 @@ const fetchBestOffer = async (tokenId: number, log: Log): Promise<any> => {
 
 const fetchBestListing = async (tokenId: number, log: Log): Promise<any> => {
   const url = opensea.getBestListing(tokenId)
-  return openseaGet(url, log)
+  const result = await openseaGet(url, log)
+  return result
 }
 
 /**
@@ -102,66 +100,75 @@ const messageEmbed = async (tokenId: number, log: Log) => {
   }
 
   const fields: any[] = []
-  const nft = await fetchNFT(tokenId, log)
-  if (!nft) return
+  let nft: any
 
-  // Format owner
-  if (nft.owners?.length > 0) {
-    const owner = nft.owners[0]
-    const name = await username(owner.address, log)
-    fields.push({
-      name: 'Owner',
-      value: name,
-      inline: true,
-    })
+  const getOwner = async () => {
+    nft = await fetchNFT(tokenId, log)
+    if (nft.owners?.length > 0) {
+      const owner = nft.owners[0]
+      const name = await username(owner.address, log)
+      fields.push({
+        name: 'Owner',
+        value: name,
+        inline: true,
+      })
+    }
   }
 
-  // Format last sale
-  const lastSale = await fetchLastSale(tokenId, log)
-  if (lastSale) {
-    const { quantity, decimals, symbol } = lastSale.payment
-    const price = formatAmount(quantity, decimals, symbol)
-    const date = new Date(lastSale.closing_date * 1000)
-    const formattedDate = new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-    }).format(date)
-    const year = new Intl.DateTimeFormat('en-US', { year: '2-digit' }).format(
-      date,
-    )
-    fields.push({
-      name: 'Last Sale',
-      value: `${price} (${formattedDate} '${year})`,
-      inline: true,
-    })
+  const getLastSale = async () => {
+    const lastSale = await fetchLastSale(tokenId, log)
+    if (lastSale) {
+      const { quantity, decimals, symbol } = lastSale.payment
+      const price = formatAmount(quantity, decimals, symbol)
+      const date = new Date(lastSale.closing_date * 1000)
+      const formattedDate = new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        year: '2-digit',
+      }).format(date)
+      fields.push({
+        name: 'Last Sale',
+        value: `${price} (${formattedDate.replace(' ', " '")})`,
+        inline: true,
+      })
+    }
   }
 
-  // Format best listing
-  const listing = await fetchBestListing(tokenId, log)
-  if (Object.keys(listing).length > 0) {
-    const { value, decimals, currency } = listing.price.current
-    const price = formatAmount(value, decimals, currency)
-    fields.push({
-      name: listing.type === 'basic' ? 'Listed For' : 'Auction',
-      value: price,
-      inline: true,
-    })
-  }
-
-  // Format best offer
-  const offer = await fetchBestOffer(tokenId, log)
-  if (Object.keys(offer).length > 0) {
-    // Skip collection offers since they are repetitive
-    if (!offer.criteria?.collection) {
-      const { value, decimals, currency } = offer.price
+  const getBestListing = async () => {
+    const listing = await fetchBestListing(tokenId, log)
+    if (Object.keys(listing).length > 0) {
+      const { value, decimals, currency } = listing.price.current
       const price = formatAmount(value, decimals, currency)
       fields.push({
-        name: 'Best Offer',
+        name: listing.type === 'basic' ? 'Listed For' : 'Auction',
         value: price,
         inline: true,
       })
     }
   }
+
+  const getBestOffer = async () => {
+    // Get best offer
+    const offer = await fetchBestOffer(tokenId, log)
+    if (Object.keys(offer).length > 0) {
+      // Skip collection offers since they are repetitive
+      if (!offer.criteria?.collection) {
+        const { value, decimals, currency } = offer.price
+        const price = formatAmount(value, decimals, currency)
+        fields.push({
+          name: 'Best Offer',
+          value: price,
+          inline: true,
+        })
+      }
+    }
+  }
+
+  const results = await Promise.all([
+    getOwner(),
+    getLastSale(),
+    getBestListing(),
+    getBestOffer(),
+  ])
 
   // Format custom description
   const description = (CUSTOM_DESCRIPTION ?? '').replace(
