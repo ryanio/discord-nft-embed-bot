@@ -8,7 +8,7 @@ An OpenSea API key is needed - create one in your account.
 
 To run multiple instances of this bot at once check out [bot-runner](https://github.com/ryanio/bot-runner). Also check out [opensea-activity-bot](https://github.com/ryanio/opensea-activity-bot).
 
-## Supported syntax
+**Supported syntax**:
 
 - `#1234`
 - `#random` or `#rand` or `#?`
