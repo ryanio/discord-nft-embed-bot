@@ -36,9 +36,9 @@ Provided metadata fields:
 - Owner
 - Last sale
 - Listed for
-- Highest offer
+- Best offer
 
-You can add specific properties of the nft by formatting `asset.traits` and adding to the `fields` array.
+You can add specific properties of the nft by formatting `nft.traits` and adding to the `fields` array.
 
 ## Setup
 
