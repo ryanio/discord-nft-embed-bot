@@ -62,6 +62,7 @@ const fetchCollectionSlug = async (address: string) => {
     console.log(l)
   }
   collectionSlug = result.collection
+  console.log(`Got collection slug: ${collectionSlug}`)
   return result.collection
 }
 
