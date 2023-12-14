@@ -63,7 +63,7 @@ const fetchCollectionSlug = async (address: string) => {
   }
   collectionSlug = result.collection
   console.log(`Got collection slug: ${collectionSlug}`)
-  return result.collection
+  return collectionSlug
 }
 
 const fetchNFT = async (tokenId: number, log: Log): Promise<any> => {
