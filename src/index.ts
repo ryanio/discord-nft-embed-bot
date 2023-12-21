@@ -45,7 +45,7 @@ export const opensea = {
   getBestListing: (tokenId: number) =>
     `${opensea.api}listings/collection/${collectionSlug}/nfts/${tokenId}/best`,
   getEvents: (tokenId: number) =>
-    `${opensea.api}events/chain/${chain}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}}`,
+    `${opensea.api}events/chain/${chain}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}`,
 }
 
 /**
@@ -76,7 +76,7 @@ const fetchNFT = async (tokenId: number, log: Log): Promise<any> => {
 const fetchLastSale = async (tokenId: number, log: Log): Promise<any> => {
   const url = `${opensea.getEvents(tokenId)}?event_type=sale&limit=1`
   const result = await openseaGet(url, log)
-  return result.asset_events[0]
+  return result?.asset_events[0]
 }
 
 const fetchBestOffer = async (tokenId: number, log: Log): Promise<any> => {
