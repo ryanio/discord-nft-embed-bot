@@ -14,7 +14,7 @@
     "start:dev": "ts-node src/index.ts"
   },
   "dependencies": {
-    "discord.js": "^14.14.1",
+    "discord.js": "^14.15.3",
     "ethers": "^6.9.0"
   },
   "devDependencies": {
