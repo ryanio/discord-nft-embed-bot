@@ -1,7 +1,6 @@
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const LOG_LEVEL_ENV = process.env.LOG_LEVEL;
-const DEBUG_ENV = process.env.DEBUG;
 
 const levelPriority: Record<LogLevel, number> = {
   debug: 10,
@@ -11,7 +10,7 @@ const levelPriority: Record<LogLevel, number> = {
 };
 
 const resolveMinLevel = (): LogLevel => {
-  if (LOG_LEVEL_ENV === 'debug' || DEBUG_ENV === 'true') {
+  if (LOG_LEVEL_ENV === 'debug') {
     return 'debug';
   }
   if (LOG_LEVEL_ENV === 'warn') {
@@ -42,7 +41,7 @@ const formatMessage = (level: LogLevel, parts: unknown[]): string => {
       }
     })
     .join(' ');
-  return `[${time}] [${level.toUpperCase()}] ${text}\n`;
+  return `${time} [${level.toUpperCase()}] [Embed] ${text}\n`;
 };
 
 const write = (level: LogLevel, parts: unknown[]) => {

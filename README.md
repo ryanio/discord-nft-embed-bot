@@ -66,6 +66,8 @@ Please define the following env variables for the repository to work as intended
   - A comma-separated list of `channelId=intervalInMinutes` e.g. `662377002338091020=5,924064011820077076=10` to send random items to channels in intervals.
 - `CUSTOM_DESCRIPTION`
   - A custom description for the embed. The string `{id}` is replaced with the token ID.
+\- `LOG_LEVEL`
+  - Minimum log level to output: `debug`, `info`, `warn`, or `error`. Defaults to `info`. Use `debug` to include detailed request diagnostics.
 
 ### Bot
 

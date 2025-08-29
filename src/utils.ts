@@ -1,8 +1,9 @@
 import { formatUnits } from 'ethers';
 import { opensea } from './index';
+import { logger } from './logger';
 import { LRUCache } from './lru-cache';
 
-const { CHAIN, MIN_TOKEN_ID, MAX_TOKEN_ID, DEBUG } = process.env;
+const { CHAIN, MIN_TOKEN_ID, MAX_TOKEN_ID } = process.env;
 
 export type Log = string[];
 export const separator = '-'.repeat(60);
@@ -51,11 +52,15 @@ export const openseaGet = async <T>(
     const response = await fetch(url, opensea.GET_OPTS);
     if (!response.ok) {
       log.push(
-        `Fetch Error for ${url} - ${response.status}: ${response.statusText}`,
-        DEBUG === 'true'
-          ? `DEBUG: ${JSON.stringify(await response.text())}`
-          : ''
+        `Fetch Error for ${url} - ${response.status}: ${response.statusText}`
       );
+      // Emit detailed response body only at debug level
+      try {
+        const bodyText = await response.text();
+        logger.debug('Fetch debug response for', url, bodyText);
+      } catch (_e) {
+        // ignore JSON/stream errors in debug path
+      }
       return;
     }
     const result = (await response.json()) as T;
