@@ -33,7 +33,7 @@ import {
   SECONDS_PER_MINUTE,
   SEPARATOR,
 } from "./config/constants";
-import { createLogger, logger } from "./lib/logger";
+import { logger } from "./lib/logger";
 import type {
   CollectionConfig,
   EmbedResult,
@@ -43,7 +43,7 @@ import type {
 import { formatAmount, formatShortDate, getHighResImage } from "./lib/utils";
 import { getStateManager } from "./state/state";
 
-const log = createLogger("Embed");
+const log = logger;
 
 const { DISCORD_TOKEN, RANDOM_INTERVALS } = process.env;
 
@@ -560,7 +560,7 @@ const formatReadableTimestamp = (date: Date): string =>
     hour12: true,
   });
 
-const printRandomIntervalsConfig = (): void => {
+const printRandomIntervalsConfig = async (client: Client): Promise<void> => {
   if (!RANDOM_INTERVALS) {
     return;
   }
@@ -583,7 +583,18 @@ const printRandomIntervalsConfig = (): void => {
     const collectionLabel = getCollectionLabel(collectionOption);
     const lastPost = stateManager.getLastRandomPost(channelId);
 
-    logger.info(`│  📢  Channel ${channelId}`);
+    // Try to resolve channel name
+    let channelDisplay = channelId;
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel && "name" in channel && channel.name) {
+        channelDisplay = `#${channel.name}`;
+      }
+    } catch {
+      // Fall back to ID if channel can't be fetched
+    }
+
+    logger.info(`│  📢  ${channelDisplay}`);
     logger.info(`│     ├─ Interval: ${minutes} minute(s)`);
     logger.info(`│     ├─ Collections: ${collectionLabel}`);
 
@@ -636,9 +647,6 @@ const printConfig = (): void => {
     printCollectionConfig(c);
   }
 
-  // Print random intervals config
-  printRandomIntervalsConfig();
-
   // Print state info
   printStateInfo();
 
@@ -678,6 +686,9 @@ async function main(): Promise<void> {
   });
 
   client.on(Events.ClientReady, async () => {
+    // Print random intervals config now that we can resolve channel names
+    await printRandomIntervalsConfig(client);
+
     logger.info(SEPARATOR);
     logger.info(`🤖 Logged in as ${client.user?.tag}`);
     logger.info("👂 Listening for messages...");
