@@ -17,6 +17,16 @@ const glyphbotsCollection: CollectionConfig = {
   maxTokenId: 10_735,
 };
 
+/** Regex to match "Name #123 - " pattern for extracting NFT subtitle */
+const NFT_NAME_PATTERN = /^.+\s#\d+\s*-\s*/;
+
+/**
+ * Extract the subtitle portion from an NFT name
+ * e.g., "GlyphBot #1 - Vector" → "Vector"
+ */
+const extractNftSubtitle = (name: string): string =>
+  NFT_NAME_PATTERN.test(name) ? name.replace(NFT_NAME_PATTERN, "") : name;
+
 describe("embed composition", () => {
   beforeEach(() => {
     fetchMock.resetMocks();
@@ -72,5 +82,139 @@ describe("embed composition", () => {
     expect(sale?.event_type).toBe("sale");
     expect(sale?.payment.symbol).toBe("ETH");
     expect(sale?.nft.name).toBe("GlyphBot #1533 - Fizzyprime");
+  });
+
+  it("replaces all {id} placeholders in customDescription", () => {
+    const collection: CollectionConfig = {
+      ...glyphbotsCollection,
+      customDescription:
+        "[View Bot](http://glyphbots.com/bot/{id}) · [Generate](http://glyphbots.com/bot/{id}/generate)",
+    };
+
+    const tokenId = 123;
+    const customDesc = (collection.customDescription ?? "").replace(
+      /{id}/g,
+      tokenId.toString()
+    );
+
+    expect(customDesc).toBe(
+      "[View Bot](http://glyphbots.com/bot/123) · [Generate](http://glyphbots.com/bot/123/generate)"
+    );
+    expect(customDesc).not.toContain("{id}");
+    expect(customDesc).toContain("/123");
+    expect(customDesc).toContain("/123/generate");
+  });
+});
+
+describe("NFT name pattern extraction", () => {
+  describe("extractNftSubtitle", () => {
+    it("extracts subtitle from 'Name #123 - Subtitle' pattern", () => {
+      expect(extractNftSubtitle("GlyphBot #1 - Vector the Kind")).toBe(
+        "Vector the Kind"
+      );
+      expect(extractNftSubtitle("CryptoPunk #1234 - Alien")).toBe("Alien");
+      expect(extractNftSubtitle("Cool Collection #99999 - Description")).toBe(
+        "Description"
+      );
+    });
+
+    it("handles multiple dashes in subtitle", () => {
+      expect(extractNftSubtitle("GlyphBot #1 - Vector - the - Kind")).toBe(
+        "Vector - the - Kind"
+      );
+      expect(extractNftSubtitle("NFT #42 - Sub-title-here")).toBe(
+        "Sub-title-here"
+      );
+    });
+
+    it("handles varying whitespace around dash", () => {
+      expect(extractNftSubtitle("GlyphBot #1- NoSpaceBefore")).toBe(
+        "NoSpaceBefore"
+      );
+      expect(extractNftSubtitle("GlyphBot #1 -NoSpaceAfter")).toBe(
+        "NoSpaceAfter"
+      );
+      expect(extractNftSubtitle("GlyphBot #1-NoSpaces")).toBe("NoSpaces");
+      expect(extractNftSubtitle("GlyphBot #1  -  ExtraSpaces")).toBe(
+        "ExtraSpaces"
+      );
+    });
+
+    it("returns full name when pattern does not match", () => {
+      // No hash/digits pattern
+      expect(extractNftSubtitle("My Cool NFT")).toBe("My Cool NFT");
+      expect(extractNftSubtitle("Just a name")).toBe("Just a name");
+
+      // Has dash but no #digits
+      expect(extractNftSubtitle("NFT - Something")).toBe("NFT - Something");
+
+      // Has #digits but no dash after
+      expect(extractNftSubtitle("GlyphBot #123")).toBe("GlyphBot #123");
+      expect(extractNftSubtitle("Token #1 is cool")).toBe("Token #1 is cool");
+    });
+
+    it("handles edge cases with numbers and hashes", () => {
+      // Hash not followed by digits
+      expect(extractNftSubtitle("NFT #abc - Title")).toBe("NFT #abc - Title");
+
+      // Multiple hashes - matches first valid pattern
+      expect(extractNftSubtitle("NFT #1 - Title #2")).toBe("Title #2");
+
+      // Empty subtitle after pattern
+      expect(extractNftSubtitle("GlyphBot #1 - ")).toBe("");
+    });
+
+    it("handles real-world NFT names from fixtures", () => {
+      // From get-nft.json fixture
+      expect(extractNftSubtitle("GlyphBot #1 - Vector the Kind")).toBe(
+        "Vector the Kind"
+      );
+      // From get-events-sale.json fixture
+      expect(extractNftSubtitle("GlyphBot #1533 - Fizzyprime")).toBe(
+        "Fizzyprime"
+      );
+    });
+
+    it("handles names with special characters", () => {
+      expect(extractNftSubtitle("Bot #1 - 🤖 Robot")).toBe("🤖 Robot");
+      expect(extractNftSubtitle("NFT #42 - (Special) [Edition]")).toBe(
+        "(Special) [Edition]"
+      );
+      expect(extractNftSubtitle("Collection #999 - Item's Name")).toBe(
+        "Item's Name"
+      );
+    });
+
+    it("handles very long token IDs", () => {
+      expect(extractNftSubtitle("Token #123456789012345 - Long ID Title")).toBe(
+        "Long ID Title"
+      );
+    });
+
+    it("handles single digit token IDs", () => {
+      expect(extractNftSubtitle("NFT #0 - Zero")).toBe("Zero");
+      expect(extractNftSubtitle("Bot #1 - One")).toBe("One");
+      expect(extractNftSubtitle("Token #9 - Nine")).toBe("Nine");
+    });
+  });
+
+  describe("NFT_NAME_PATTERN regex", () => {
+    it("matches standard NFT name patterns", () => {
+      expect(NFT_NAME_PATTERN.test("GlyphBot #1 - Vector")).toBe(true);
+      expect(NFT_NAME_PATTERN.test("CryptoPunk #1234 - Alien")).toBe(true);
+      expect(NFT_NAME_PATTERN.test("BAYC #9999 - Bored Ape")).toBe(true);
+    });
+
+    it("does not match names without the pattern", () => {
+      expect(NFT_NAME_PATTERN.test("My Cool NFT")).toBe(false);
+      expect(NFT_NAME_PATTERN.test("NFT - Something")).toBe(false);
+      expect(NFT_NAME_PATTERN.test("GlyphBot #123")).toBe(false);
+      expect(NFT_NAME_PATTERN.test("#123 - Title")).toBe(false); // No name before #
+    });
+
+    it("requires whitespace before hash", () => {
+      expect(NFT_NAME_PATTERN.test("GlyphBot#1 - Vector")).toBe(false);
+      expect(NFT_NAME_PATTERN.test("GlyphBot #1 - Vector")).toBe(true);
+    });
   });
 });

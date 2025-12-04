@@ -55,6 +55,9 @@ const log = logger;
 
 const { DISCORD_TOKEN, RANDOM_INTERVALS } = process.env;
 
+/** Regex to match NFT name pattern like "Name #123 - " */
+const NFT_NAME_PATTERN = /^.+\s#\d+\s*-\s*/;
+
 /** Max attempts to find a non-duplicate random token */
 const MAX_RANDOM_ATTEMPTS = 10;
 
@@ -201,7 +204,7 @@ const buildEmbed = async (
 
   // Build the embed
   const customDesc = (collection.customDescription ?? "").replace(
-    "{id}",
+    /{id}/g,
     tokenId.toString()
   );
 
@@ -211,9 +214,10 @@ const buildEmbed = async (
   // NFT name as subtitle (first line of description)
   let description = "";
   if (nft.name) {
-    // Extract name portion after " - " if present (e.g., "GlyphBot #1 - Vector" → "Vector")
-    const namePart = nft.name.includes(" - ")
-      ? nft.name.split(" - ").slice(1).join(" - ")
+    // Extract name portion after "Name #123 - " pattern if present
+    // e.g., "GlyphBot #1 - Vector" → "Vector"
+    const namePart = NFT_NAME_PATTERN.test(nft.name)
+      ? nft.name.replace(NFT_NAME_PATTERN, "")
       : nft.name;
     description = `**${namePart}**`;
   }
@@ -234,7 +238,7 @@ const buildEmbed = async (
   // Use custom image URL if provided (useful when Discord can't display SVGs)
   // Template supports {id} placeholder for token ID
   const image = collection.customImageUrl
-    ? collection.customImageUrl.replace("{id}", tokenId.toString())
+    ? collection.customImageUrl.replace(/{id}/g, tokenId.toString())
     : getHighResImage(nft.image_url);
   if (image) {
     embed.setImage(image);
