@@ -146,6 +146,49 @@ describe("collection", () => {
 
       expect(() => init()).toThrow(NO_COLLECTIONS_ERROR_REGEX);
     });
+
+    it("parses first collection with explicit prefix (no default)", () => {
+      process.env.COLLECTIONS = "main:0xabc:MainNFT:1:1000";
+      const {
+        initCollections: init,
+        getDefaultCollection: getDefault,
+        getCollectionByPrefix: getByPrefix,
+      } = jest.requireActual("../src/collection");
+
+      init();
+
+      // No default collection since first entry has a prefix
+      expect(getDefault()).toBeUndefined();
+
+      // But the prefixed collection exists
+      const main = getByPrefix("main");
+      expect(main).toBeDefined();
+      expect(main.name).toBe("MainNFT");
+      expect(main.prefix).toBe("main");
+    });
+
+    it("parses multiple collections all with prefixes (no default)", () => {
+      process.env.COLLECTIONS =
+        "primary:0xabc:MainNFT:1:1000,secondary:0xdef:SecondNFT:0:500";
+      const {
+        initCollections: init,
+        getDefaultCollection: getDefault,
+        getCollections: getAll,
+        getCollectionByPrefix: getByPrefix,
+      } = jest.requireActual("../src/collection");
+
+      init();
+      const all = getAll();
+
+      expect(all.length).toBe(2);
+      expect(getDefault()).toBeUndefined();
+
+      const primary = getByPrefix("primary");
+      expect(primary.name).toBe("MainNFT");
+
+      const secondary = getByPrefix("secondary");
+      expect(secondary.name).toBe("SecondNFT");
+    });
   });
 
   describe("initCollections with legacy env vars", () => {

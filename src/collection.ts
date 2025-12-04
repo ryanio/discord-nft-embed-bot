@@ -25,14 +25,27 @@ const collectionMap = new Map<string, CollectionConfig>();
 const slugMap = new Map<string, string>();
 
 /**
+ * Check if a string looks like an Ethereum address
+ */
+const isEthAddress = (value: string): boolean => value.startsWith("0x");
+
+/**
  * Parse a single collection entry
+ *
+ * For the first entry, we auto-detect whether a prefix is specified:
+ * - If first part starts with 0x, treat as address (no prefix, becomes default)
+ * - Otherwise, treat first part as prefix
  */
 const parseCollectionEntry = (
   entry: string,
   isFirst: boolean
 ): CollectionConfig | undefined => {
   const parts = entry.split(":");
-  const minParts = isFirst ? 4 : 5;
+
+  // For first entry, detect if prefix is specified by checking if first part is an address
+  const firstHasPrefix = isFirst && !isEthAddress(parts.at(0) ?? "");
+  const hasPrefix = !isFirst || firstHasPrefix;
+  const minParts = hasPrefix ? 5 : 4;
 
   if (parts.length < minParts) {
     log.warn(
@@ -49,11 +62,11 @@ const parseCollectionEntry = (
   let chain: string | undefined;
   let color: string | undefined;
 
-  if (isFirst) {
+  if (hasPrefix) {
+    [prefix, address, name, minId, maxId, chain, color] = parts;
+  } else {
     [address, name, minId, maxId, chain, color] = parts;
     prefix = "";
-  } else {
-    [prefix, address, name, minId, maxId, chain, color] = parts;
   }
 
   if (!(address && name)) {
@@ -71,7 +84,8 @@ const parseCollectionEntry = (
     color: color || DEFAULT_EMBED_COLOR,
   };
 
-  const label = isFirst ? "(default)" : `"${config.prefix}"`;
+  const isDefault = config.prefix === "";
+  const label = isDefault ? "(default)" : `"${config.prefix}"`;
   log.debug(
     `Parsed collection ${label}: ${config.name} (${config.minTokenId}-${config.maxTokenId})`
   );
@@ -82,10 +96,13 @@ const parseCollectionEntry = (
 /**
  * Parse collections from COLLECTIONS env var
  *
- * Format: address:name:minId:maxId[:chain][:color],prefix:address:name:minId:maxId[:chain][:color],...
+ * Format: [prefix:]address:name:minId:maxId[:chain][:color],...
  *
- * - First collection: address:name:minId:maxId[:chain][:color] (no prefix, becomes default)
+ * - First collection without prefix: address:name:minId:maxId[:chain][:color] (becomes default)
+ * - First collection with prefix: prefix:address:name:minId:maxId[:chain][:color] (no default)
  * - Additional collections: prefix:address:name:minId:maxId[:chain][:color]
+ *
+ * Prefix detection for first entry: if first part starts with 0x, treated as address (no prefix)
  */
 const parseCollections = (): CollectionConfig[] => {
   if (!COLLECTIONS) {
