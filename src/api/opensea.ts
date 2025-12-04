@@ -168,62 +168,44 @@ export const fetchCollectionSlug = async (
   log.warn(`Failed to get slug for ${collection.name}`);
 };
 
-/** Contract info response from OpenSea */
-type ContractInfo = {
-  contract_standard: string;
-  collection: string;
-};
-
 /**
- * Fetch contract info including token standard
- */
-export const fetchContractInfo = (
-  collection: CollectionConfig,
-  userLog: Log
-): Promise<ContractInfo | undefined> => {
-  log.debug(`Fetching contract info for ${collection.name}`);
-  const url = urls.contract(collection);
-  return openseaGet<ContractInfo>(url, userLog);
-};
-
-/**
- * Fetch total supply for a collection by slug
+ * Fetch unique item count for a collection by slug
  *
  * This is used when maxTokenId is set to "*" to dynamically determine the collection size.
- * Returns undefined if the collection is ERC-1155 (total_supply = editions, not unique tokens).
+ * Prefers `unique_item_count` (works for both ERC-721 and ERC-1155) over `total_supply`
+ * (which for ERC-1155 represents total editions, not unique tokens).
  *
  * @param slug - Collection slug
- * @param collection - Collection config (for contract info lookup)
  * @param userLog - Log array
- * @returns Total supply for ERC-721 collections, undefined for ERC-1155
+ * @returns Number of unique token IDs in the collection
  */
 export const fetchTotalSupply = async (
   slug: string,
-  collection: CollectionConfig,
   userLog: Log
 ): Promise<number | undefined> => {
-  log.info(`Fetching total supply for collection: ${slug}`);
-
-  // First check if it's ERC-1155 - dynamic supply doesn't work for those
-  const contractInfo = await fetchContractInfo(collection, userLog);
-  if (contractInfo?.contract_standard === "erc1155") {
-    log.warn(
-      `Dynamic supply (*) not supported for ERC-1155 collection: ${collection.name}. ` +
-        "OpenSea total_supply represents total editions, not unique token IDs. " +
-        "Please specify an explicit maxTokenId instead."
-    );
-    return;
-  }
+  log.info(`Fetching unique item count for collection: ${slug}`);
 
   const url = urls.collection(slug);
   const result = await openseaGet<OpenSeaCollection>(url, userLog);
 
+  // Prefer unique_item_count (works correctly for ERC-1155)
+  // Fall back to total_supply if unique_item_count is null/undefined
+  if (
+    result?.unique_item_count !== undefined &&
+    result.unique_item_count !== null
+  ) {
+    log.info(`Got unique item count for ${slug}: ${result.unique_item_count}`);
+    return result.unique_item_count;
+  }
+
   if (result?.total_supply !== undefined) {
-    log.info(`Got total supply for ${slug}: ${result.total_supply}`);
+    log.info(
+      `Got total supply for ${slug}: ${result.total_supply} (unique_item_count not available)`
+    );
     return result.total_supply;
   }
 
-  log.warn(`Failed to get total supply for ${slug}`);
+  log.warn(`Failed to get item count for ${slug}`);
 };
 
 /**

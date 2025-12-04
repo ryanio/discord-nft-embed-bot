@@ -222,31 +222,28 @@ COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereu
 
 ### Dynamic Supply
 
-Use `*` as the `maxId` to automatically fetch the collection's total supply from OpenSea:
+Use `*` as the `maxId` to automatically fetch the collection's unique item count from OpenSea:
 
 ```env
-# Total supply will be fetched from OpenSea on startup (ERC-721 only)
+# Unique item count will be fetched from OpenSea on startup
 COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:*:ethereum
+
+# Works for ERC-1155 too
+COLLECTIONS=artifact:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:*:ethereum
 ```
 
 **How it works:**
-1. On startup, the bot fetches the collection's `total_supply` from OpenSea and uses it as `maxTokenId`
-2. Random token requests (`#random`, `#?`) use the fetched supply as the upper bound
+1. On startup, the bot fetches the collection's `unique_item_count` from OpenSea and uses it as `maxTokenId`
+2. Random token requests (`#random`, `#?`) use the fetched count as the upper bound
 3. Explicit token requests (e.g., `#12345`) will check OpenSea for new mints if they exceed the cached max
 4. This handles ongoing mints automatically - users can request newly minted tokens without restarting the bot
 
 **Benefits:**
 - No need to manually update `maxId` when new tokens are minted
+- Works for both ERC-721 and ERC-1155 collections
 - Random requests always work within the actual supply range
 - Explicit requests for new mints are handled gracefully
-
-**⚠️ ERC-1155 Limitation:**
-Dynamic supply (`*`) is **not supported for ERC-1155 collections**. OpenSea's `total_supply` for ERC-1155 represents the total number of editions (items × supply per item), not the number of unique token IDs. For ERC-1155 collections like GlyphBots Artifacts, you must specify an explicit `maxId`:
-
-```env
-# ERC-1155 collections require explicit maxId
-COLLECTIONS=artifact:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:150:ethereum
-```
+- Uses `unique_item_count` (not affected by burns) with fallback to `total_supply`
 
 ### Supported Message Syntax
 

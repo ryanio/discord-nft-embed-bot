@@ -127,6 +127,8 @@ export type OpenSeaCollection = {
   collection: string;
   name: string;
   total_supply: number;
+  /** Number of unique token IDs (preferred over total_supply for ERC-1155) */
+  unique_item_count?: number | null;
   rarity?: {
     total_supply: number;
   };
