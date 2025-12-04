@@ -624,7 +624,7 @@ const printStateInfo = (): void => {
 };
 
 /**
- * Print configuration summary
+ * Print configuration summary (does not close the box - call printConfigEnd after random intervals)
  */
 const printConfig = (): void => {
   const collections = getCollections();
@@ -646,7 +646,12 @@ const printConfig = (): void => {
   for (const c of collections) {
     printCollectionConfig(c);
   }
+};
 
+/**
+ * Print the closing section of config (STATE + end)
+ */
+const printConfigEnd = (): void => {
   // Print state info
   printStateInfo();
 
@@ -688,6 +693,9 @@ async function main(): Promise<void> {
   client.on(Events.ClientReady, async () => {
     // Print random intervals config now that we can resolve channel names
     await printRandomIntervalsConfig(client);
+
+    // Print state and close the config box
+    printConfigEnd();
 
     logger.info(SEPARATOR);
     logger.info(`🤖 Logged in as ${client.user?.tag}`);
