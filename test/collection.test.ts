@@ -145,6 +145,116 @@ describe("collection", () => {
       expect(defaultCol.customImageUrl).toBeUndefined();
     });
 
+    it("parses collection with custom description", () => {
+      process.env.COLLECTIONS =
+        "0xabc:TestNFT:1:1000:ethereum:#00ff88:View token #{id} here";
+      const { initCollections: init, getDefaultCollection: getDefault } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const defaultCol = getDefault();
+
+      expect(defaultCol.customDescription).toBe("View token #{id} here");
+      expect(defaultCol.customImageUrl).toBeUndefined();
+    });
+
+    it("parses collection with custom description and image URL", () => {
+      process.env.COLLECTIONS =
+        "0xabc:TestNFT:1:1000:ethereum:#00ff88:View token #{id}:https://example.com/{id}.png";
+      const { initCollections: init, getDefaultCollection: getDefault } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const defaultCol = getDefault();
+
+      expect(defaultCol.customDescription).toBe("View token #{id}");
+      expect(defaultCol.customImageUrl).toBe("https://example.com/{id}.png");
+    });
+
+    it("parses collection with markdown links in custom description", () => {
+      process.env.COLLECTIONS =
+        "0xabc:TestNFT:1:1000:ethereum:#00ff88:[View Bot](http://glyphbots.com/bot/{id}):https://example.com/{id}.png";
+      const { initCollections: init, getDefaultCollection: getDefault } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const defaultCol = getDefault();
+
+      expect(defaultCol.customDescription).toBe(
+        "[View Bot](http://glyphbots.com/bot/{id})"
+      );
+      expect(defaultCol.customImageUrl).toBe("https://example.com/{id}.png");
+    });
+
+    it("reconstructs URLs that were split by colons in markdown links", () => {
+      // When split by ':', (http://example.com) becomes (http, //example.com)
+      // The parser should reconstruct it back to (http://example.com)
+      process.env.COLLECTIONS =
+        "0xabc:TestNFT:1:1000:ethereum:#00ff88:[View Bot](http://glyphbots.com/bot/{id}/generate) [View Artifact](https://www.glyphbots.com/artifact/{id}):https://example.com/{id}.png";
+      const { initCollections: init, getDefaultCollection: getDefault } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const defaultCol = getDefault();
+
+      expect(defaultCol.customDescription).toContain(
+        "[View Bot](http://glyphbots.com/bot/{id}/generate)"
+      );
+      expect(defaultCol.customDescription).toContain(
+        "[View Artifact](https://www.glyphbots.com/artifact/{id})"
+      );
+      expect(defaultCol.customImageUrl).toBe("https://example.com/{id}.png");
+    });
+
+    it("handles custom description with multiple markdown links", () => {
+      process.env.COLLECTIONS =
+        "b:0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:Bot:1:11111:ethereum:#00ff88:[View Bot · Generate](http://glyphbots.com/bot/{id}/generate) [View Bot](http://glyphbots.com/bot/{id}) [View Artifact](https://www.glyphbots.com/artifact/{id}):https://glyphbots.com/bots/pngs/{id}.png";
+      const { initCollections: init, getCollectionByPrefix: getByPrefix } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const botCol = getByPrefix("b");
+
+      expect(botCol.customDescription).toContain(
+        "[View Bot · Generate](http://glyphbots.com/bot/{id}/generate)"
+      );
+      expect(botCol.customDescription).toContain(
+        "[View Bot](http://glyphbots.com/bot/{id})"
+      );
+      expect(botCol.customDescription).toContain(
+        "[View Artifact](https://www.glyphbots.com/artifact/{id})"
+      );
+      expect(botCol.customImageUrl).toBe(
+        "https://glyphbots.com/bots/pngs/{id}.png"
+      );
+    });
+
+    it("treats standalone URL as imageUrl when no custom description", () => {
+      process.env.COLLECTIONS =
+        "0xabc:TestNFT:1:1000:ethereum:#00ff88:https://example.com/{id}.png";
+      const { initCollections: init, getDefaultCollection: getDefault } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const defaultCol = getDefault();
+
+      expect(defaultCol.customDescription).toBeUndefined();
+      expect(defaultCol.customImageUrl).toBe("https://example.com/{id}.png");
+    });
+
+    it("handles custom description with colons in text", () => {
+      process.env.COLLECTIONS =
+        "0xabc:TestNFT:1:1000:ethereum:#00ff88:Time: 12:34 PM:https://example.com/{id}.png";
+      const { initCollections: init, getDefaultCollection: getDefault } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const defaultCol = getDefault();
+
+      expect(defaultCol.customDescription).toBe("Time: 12:34 PM");
+      expect(defaultCol.customImageUrl).toBe("https://example.com/{id}.png");
+    });
+
     it("parses multiple collections", () => {
       process.env.COLLECTIONS =
         "0xabc:MainNFT:1:1000,secondary:0xdef:SecondNFT:0:500";

@@ -32,22 +32,85 @@ const slugMap = new Map<string, string>();
 /** Username validation regex - alphanumeric/underscore, 3-15 chars, starts with letter */
 const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,14}$/;
 
+/** Regex to match trailing colon */
+const TRAILING_COLON_REGEX = /:$/;
+
 /**
  * Check if a string looks like an Ethereum address
  */
 const isEthAddress = (value: string): boolean => value.startsWith("0x");
 
 /**
+ * Fix URLs that were broken by colon separator
+ * When split by ':', URLs like (http://example.com) become (http://example.com)
+ * This fixes patterns like (http:// to become (http://
+ */
+const fixBrokenUrls = (text: string): string => {
+  // Fix broken URLs in markdown links: (http:// becomes (http://
+  return text
+    .replace(/\(http:\/\//g, "(http://")
+    .replace(/\(https:\/\//g, "(https://");
+};
+
+/**
+ * Parse customDescription and customImageUrl from extra parts
+ * If last part is a URL (http/https), treat it as imageUrl and rest as customDescription
+ * Reconstructs URLs that were split by colon separator
+ */
+const parseExtraFields = (
+  extraParts: string[]
+): { customDescription?: string; customImageUrl?: string } => {
+  if (extraParts.length === 0) {
+    return {};
+  }
+
+  // Join all parts first
+  const joined = extraParts.join(":");
+
+  // Find the last standalone URL (not inside markdown link parentheses)
+  // Look for http:// or https:// that's not preceded by (
+  const urlMatch = joined.match(/(?<!\()https?:\/\/[^\s)]+/g);
+  const lastUrl = urlMatch?.at(-1);
+
+  if (lastUrl) {
+    // Split on the last URL
+    const lastUrlIndex = joined.lastIndexOf(lastUrl);
+    let beforeUrl = joined.slice(0, lastUrlIndex).trim();
+    const afterUrl = joined.slice(lastUrlIndex + lastUrl.length).trim();
+
+    // Remove trailing colon if present (from the separator)
+    beforeUrl = beforeUrl.replace(TRAILING_COLON_REGEX, "").trim();
+
+    // If there's content after the URL, it might be part of the URL (like /generate)
+    // Otherwise, treat the URL as imageUrl
+    if (!afterUrl || afterUrl.startsWith(")") || afterUrl === "") {
+      const customDesc = beforeUrl ? fixBrokenUrls(beforeUrl) : undefined;
+      return {
+        customDescription: customDesc,
+        customImageUrl: lastUrl,
+      };
+    }
+  }
+
+  // No standalone URL found - treat all as customDescription and fix URLs
+  return { customDescription: fixBrokenUrls(joined) };
+};
+
+/**
  * Extract collection fields from parts array
- * Format: [prefix:]address:name:minId:maxId[:chain][:color][:imageUrl]
+ * Format: [prefix:]address:name:minId:maxId[:chain][:color][:customDescription][:imageUrl]
  */
 const extractCollectionFields = (
   parts: string[],
   hasPrefix: boolean
 ): CollectionConfig => {
   const offset = hasPrefix ? 0 : -1;
-  const imageUrlStart = 7 + offset;
-  const imageUrlParts = parts.slice(imageUrlStart);
+  const colorIndex = 6 + offset;
+  const customDescStart = 7 + offset;
+
+  const extraParts =
+    parts.length > customDescStart ? parts.slice(customDescStart) : [];
+  const { customDescription, customImageUrl } = parseExtraFields(extraParts);
 
   return {
     prefix: (hasPrefix ? (parts.at(0) ?? "") : "").toLowerCase(),
@@ -56,10 +119,9 @@ const extractCollectionFields = (
     chain: parts.at(5 + offset) || DEFAULT_CHAIN,
     minTokenId: Number(parts.at(3 + offset)) || 0,
     maxTokenId: Number(parts.at(4 + offset)) || 10_000,
-    color: parts.at(6 + offset) || DEFAULT_EMBED_COLOR,
-    // Image URL may contain colons - join remaining parts
-    customImageUrl:
-      imageUrlParts.length > 0 ? imageUrlParts.join(":") : undefined,
+    color: parts.at(colorIndex) || DEFAULT_EMBED_COLOR,
+    customDescription,
+    customImageUrl,
   };
 };
 
@@ -106,11 +168,15 @@ const parseCollectionEntry = (
 /**
  * Parse collections from COLLECTIONS env var
  *
- * Format: [prefix:]address:name:minId:maxId[:chain][:color],...
+ * Format: [prefix:]address:name:minId:maxId[:chain][:color][:customDescription][:imageUrl],...
  *
- * - First collection without prefix: address:name:minId:maxId[:chain][:color] (becomes default)
- * - First collection with prefix: prefix:address:name:minId:maxId[:chain][:color] (no default)
- * - Additional collections: prefix:address:name:minId:maxId[:chain][:color]
+ * - First collection without prefix: address:name:minId:maxId[:chain][:color][:customDescription][:imageUrl] (becomes default)
+ * - First collection with prefix: prefix:address:name:minId:maxId[:chain][:color][:customDescription][:imageUrl] (no default)
+ * - Additional collections: prefix:address:name:minId:maxId[:chain][:color][:customDescription][:imageUrl]
+ *
+ * customDescription: Optional text template ({id} replaced with token ID). May contain colons.
+ * imageUrl: Optional image URL template ({id} replaced with token ID). Must start with http:// or https://
+ * If both are present, imageUrl must be the last part (detected by http/https prefix).
  *
  * Prefix detection for first entry: if first part starts with 0x, treated as address (no prefix)
  */
@@ -192,7 +258,7 @@ export const initCollections = (): void => {
   if (collectionMap.size === 0) {
     throw new Error(
       "No collections configured. Set COLLECTIONS env var.\n" +
-        "Format: address:name:minId:maxId[:chain][:color],prefix:address:name:minId:maxId[:chain][:color]\n" +
+        "Format: address:name:minId:maxId[:chain][:color][:customDescription][:imageUrl],prefix:address:name:minId:maxId[:chain][:color][:customDescription][:imageUrl]\n" +
         "Example: 0x123...:MyNFT:1:10000,other:0x456...:OtherNFT:0:5000"
     );
   }
