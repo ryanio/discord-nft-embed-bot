@@ -169,7 +169,9 @@ const buildEmbedsForMatches = async (
   const embeds: EmbedBuilder[] = [];
   const parts: string[] = [];
 
-  log.debug(`Building embeds for ${matches.length} match(es)`);
+  log.debug(
+    `Building embeds for ${matches.length} ${matches.length === 1 ? "match" : "matches"}`
+  );
 
   for (const match of matches.slice(0, MAX_EMBEDS_PER_MESSAGE)) {
     const embed = await buildEmbed(match.collection, match.tokenId, userLog);
@@ -266,7 +268,6 @@ const processMessage = async (message: Message): Promise<void> => {
   }
 
   if (userLog.length > 0) {
-    userLog.push(SEPARATOR);
     for (const line of userLog) {
       logger.info(line);
     }
@@ -403,7 +404,6 @@ const postRandomToChannel = async (
   }
 
   if (userLog.length > 0) {
-    userLog.push(SEPARATOR);
     for (const line of userLog) {
       logger.info(line);
     }

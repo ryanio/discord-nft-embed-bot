@@ -348,7 +348,7 @@ export const parseMessageMatches = (content: string): TokenMatch[] => {
 
   if (matches.length > 0) {
     log.info(
-      `Found ${matches.length} match(es): ${matches.map((m) => `${m.collection.name} #${m.tokenId}`).join(", ")}`
+      `Found ${matches.length} ${matches.length === 1 ? "match" : "matches"}: ${matches.map((m) => `${m.collection.name} #${m.tokenId}`).join(", ")}`
     );
   }
 
