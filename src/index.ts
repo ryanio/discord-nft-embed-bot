@@ -509,15 +509,15 @@ const getCollectionLabel = (collectionOption: string | undefined): string => {
  * Print collection configuration
  */
 const printCollectionConfig = (c: CollectionConfig): void => {
-  const prefix = c.prefix ? `${c.prefix}#` : "#";
   const chain = c.chain ?? "ethereum";
   const tokenRange =
     c.maxTokenId !== undefined ? `0-${c.maxTokenId}` : "unlimited";
+  const syntax = c.prefix ? `#1234, ${c.prefix}#1234` : "#1234";
 
   logger.info(`│  🏷️   ${c.name}`);
   logger.info(`│     ├─ Address: ${c.address}`);
   logger.info(`│     ├─ Chain: ${chain}`);
-  logger.info(`│     ├─ Syntax: ${prefix}1234, ${prefix}random`);
+  logger.info(`│     ├─ Syntax: ${syntax}`);
   logger.info(`│     └─ Token Range: ${tokenRange}`);
   logger.info("│");
 };
