@@ -55,7 +55,8 @@ const formatMessage = (
 ): string => {
   const time = new Date().toISOString();
   const text = parts.map(serialize).join(" ");
-  return `${time} [${level.toUpperCase()}] [${prefix}] ${text}\n`;
+  const prefixParts = prefix.split(":").map((p) => `[${p}]`);
+  return `${time} [${level.toUpperCase()}] ${prefixParts.join("")} ${text}\n`;
 };
 
 const write = (level: LogLevel, prefix: string, parts: unknown[]) => {
