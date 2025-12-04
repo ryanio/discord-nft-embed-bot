@@ -2,6 +2,7 @@ import {
   type Channel,
   Client,
   EmbedBuilder,
+  Events,
   GatewayIntentBits,
   type HexColorString,
   Partials,
@@ -592,7 +593,7 @@ async function main(): Promise<void> {
     partials: [Partials.Message],
   });
 
-  client.on("ready", async () => {
+  client.on(Events.ClientReady, async () => {
     logger.info(SEPARATOR);
     logger.info(`🤖 Logged in as ${client.user?.tag}`);
     logger.info("👂 Listening for messages...");
