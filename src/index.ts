@@ -16,6 +16,7 @@ import {
   fetchNFT,
   GET_OPTS,
   getUsername,
+  NFTNotFoundError,
   urls,
 } from "./api/opensea";
 import {
@@ -49,6 +50,9 @@ const { DISCORD_TOKEN, RANDOM_INTERVALS } = process.env;
 
 /** Max attempts to find a non-duplicate random token */
 const MAX_RANDOM_ATTEMPTS = 10;
+
+/** Max retries when a random NFT doesn't exist */
+const MAX_NFT_FETCH_RETRIES = 3;
 
 /**
  * Build a Discord embed for a single NFT
@@ -362,8 +366,62 @@ const getNextCollection = (
   return collection;
 };
 
+type RandomEmbedContext = {
+  collection: CollectionConfig;
+  channelId: string;
+  chanName: string;
+  channel: TextBasedChannel;
+  userLog: Log;
+  startTime: number;
+};
+
+/**
+ * Attempt to build and send a random embed
+ * @returns true if successful, false if NFT not found (should retry)
+ * @throws for non-NFT errors
+ */
+const tryBuildRandomEmbed = async (
+  ctx: RandomEmbedContext
+): Promise<boolean> => {
+  const { collection, channelId, chanName, channel, userLog, startTime } = ctx;
+  const stateManager = getStateManager();
+  const tokenId = getUniqueRandomToken(collection, channelId);
+  const prefix = collection.prefix ? `${collection.prefix}#` : "#";
+
+  try {
+    const embed = await buildEmbed(collection, tokenId, userLog);
+
+    if (embed) {
+      stateManager.addRecentToken(channelId, tokenId);
+      stateManager.setLastRandomPost(channelId);
+      await stateManager.save();
+
+      userLog.push(
+        `Sending random ${collection.name} ${prefix}${tokenId} to #${chanName}`
+      );
+      await sendEmbed(channel, embed);
+
+      const duration = Date.now() - startTime;
+      log.info(
+        `Sent random ${collection.name} ${prefix}${tokenId} to #${chanName} (${duration}ms)`
+      );
+      return true;
+    }
+    return false;
+  } catch (error) {
+    if (error instanceof NFTNotFoundError) {
+      log.warn(
+        `NFT not found for random post: ${collection.name} #${tokenId} (contract: ${collection.address}), retrying...`
+      );
+      return false;
+    }
+    throw error;
+  }
+};
+
 /**
  * Post a random NFT to a channel
+ * Retries with a different random token if NFT not found
  */
 const postRandomToChannel = async (
   channel: TextBasedChannel,
@@ -371,42 +429,37 @@ const postRandomToChannel = async (
   chanName: string,
   targetCollections: CollectionConfig[]
 ): Promise<void> => {
-  const stateManager = getStateManager();
   const userLog: Log = [];
   const startTime = Date.now();
-
-  // Get next collection in rotation
   const collection = getNextCollection(channelId, targetCollections);
-  const tokenId = getUniqueRandomToken(collection, channelId);
 
-  const prefix = collection.prefix ? `${collection.prefix}#` : "#";
-  log.debug(
-    `Random posting to #${chanName}, ${collection.name} ${prefix}${tokenId}`
-  );
+  const ctx: RandomEmbedContext = {
+    collection,
+    channelId,
+    chanName,
+    channel,
+    userLog,
+    startTime,
+  };
 
-  const embed = await buildEmbed(collection, tokenId, userLog);
+  for (let attempt = 1; attempt <= MAX_NFT_FETCH_RETRIES; attempt++) {
+    log.debug(`Random posting to #${chanName}, attempt ${attempt}`);
 
-  if (embed) {
-    // Track this token and timestamp
-    stateManager.addRecentToken(channelId, tokenId);
-    stateManager.setLastRandomPost(channelId);
-    await stateManager.save();
+    const success = await tryBuildRandomEmbed(ctx);
 
-    userLog.push(
-      `Sending random ${collection.name} ${prefix}${tokenId} to #${chanName}`
-    );
-    await sendEmbed(channel, embed);
+    if (success) {
+      break;
+    }
 
-    const duration = Date.now() - startTime;
-    log.info(
-      `Sent random ${collection.name} ${prefix}${tokenId} to #${chanName} (${duration}ms)`
-    );
+    if (attempt === MAX_NFT_FETCH_RETRIES) {
+      log.error(
+        `Failed to find valid NFT after ${MAX_NFT_FETCH_RETRIES} attempts for ${collection.name} (contract: ${collection.address})`
+      );
+    }
   }
 
-  if (userLog.length > 0) {
-    for (const line of userLog) {
-      logger.info(line);
-    }
+  for (const line of userLog) {
+    logger.info(line);
   }
 };
 

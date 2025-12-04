@@ -129,14 +129,36 @@ describe("opensea", () => {
       expect(nft.traits).toHaveLength(15);
     });
 
-    it("throws on error", async () => {
+    it("throws NFTNotFoundError on error", async () => {
       const log: Log = [];
       fetchMock.mockResponseOnce("Error", { status: 404 });
 
       const { fetchNFT: fetchNFTLocal } = require("../src/api/opensea");
       await expect(fetchNFTLocal(testCollection, 99_999, log)).rejects.toThrow(
-        "Failed to fetch NFT"
+        "NFT not found"
       );
+    });
+
+    it("includes contract address in error message", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce("Error", { status: 404 });
+
+      const { fetchNFT: fetchNFTLocal } = require("../src/api/opensea");
+
+      try {
+        await fetchNFTLocal(testCollection, 99_999, log);
+        throw new Error("Expected NFTNotFoundError to be thrown");
+      } catch (error) {
+        const nftError = error as Error & {
+          collection?: CollectionConfig;
+          tokenId?: number;
+        };
+        expect(nftError.name).toBe("NFTNotFoundError");
+        expect(nftError.message).toContain(testCollection.address);
+        expect(nftError.message).toContain("99999");
+        expect(nftError.collection).toEqual(testCollection);
+        expect(nftError.tokenId).toBe(99_999);
+      }
     });
   });
 

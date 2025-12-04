@@ -17,6 +17,21 @@ import type {
 
 const log = createLogger("OpenSea");
 
+/** Custom error for NFT not found - allows callers to handle specifically */
+export class NFTNotFoundError extends Error {
+  readonly collection: CollectionConfig;
+  readonly tokenId: number;
+
+  constructor(collection: CollectionConfig, tokenId: number) {
+    super(
+      `NFT not found: ${collection.name} #${tokenId} (contract: ${collection.address}, chain: ${collection.chain})`
+    );
+    this.name = "NFTNotFoundError";
+    this.collection = collection;
+    this.tokenId = tokenId;
+  }
+}
+
 const { OPENSEA_API_TOKEN } = process.env;
 
 /** OpenSea API request options */
@@ -140,6 +155,8 @@ export const fetchCollectionSlug = async (
 
 /**
  * Fetch NFT data from OpenSea
+ *
+ * @throws {NFTNotFoundError} When the NFT doesn't exist or can't be fetched
  */
 export const fetchNFT = async (
   collection: CollectionConfig,
@@ -153,8 +170,10 @@ export const fetchNFT = async (
   const result = await openseaGet<{ nft: NFT }>(url, userLog);
 
   if (!result?.nft) {
-    log.error(`Failed to fetch NFT: ${collection.name} #${tokenId}`);
-    throw new Error(`Failed to fetch NFT #${tokenId}`);
+    log.error(
+      `NFT not found: ${collection.name} #${tokenId} (contract: ${collection.address})`
+    );
+    throw new NFTNotFoundError(collection, tokenId);
   }
 
   log.debug(`Fetched NFT: ${collection.name} #${tokenId}`);
