@@ -1,6 +1,6 @@
 {
   "name": "discord-nft-embed-bot",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "A discord.js bot that listens to messages in channels and replies with items from an nft collection.",
   "author": "Ryan Ghods <ryan@ryanio.com>",
   "license": "MIT",
@@ -9,28 +9,31 @@
   },
   "scripts": {
     "postinstall": "yarn build",
-    "build": "npx tsc",
+    "build": "npx tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "start:dev": "ts-node src/index.ts",
-    "format": "ultracite format --unsafe && npx tsc --noEmit",
-    "lint": "ultracite lint && npx tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "test:ci": "jest --ci --coverage --watchAll=false --maxWorkers=50%",
+    "test:coverage": "jest --coverage --maxWorkers=50%",
+    "format": "ultracite fix --unsafe && npx tsc --noEmit -p tsconfig.build.json",
+    "lint": "ultracite check && npx tsc --noEmit -p tsconfig.build.json"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
     "ethers": "^6.9.0"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.12",
-    "jest": "^29.7.0",
-    "jest-fetch-mock": "^3.0.3",
-    "ts-jest": "^29.1.1",
-    "@biomejs/biome": "2.2.2",
+    "@biomejs/biome": "2.3.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^18.0.0",
+    "jest": "^30.1.1",
+    "jest-fetch-mock": "^3.0.3",
+    "jest-mock-extended": "^4.0.0",
     "lint-staged": "^16.1.5",
+    "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
-    "ultracite": "5.2.9"
+    "ultracite": "6.3.4"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [

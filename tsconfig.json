@@ -1,12 +1,14 @@
 {
-  "include": ["src/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts"],
   "compilerOptions": {
     "module": "commonjs",
     "target": "es2020",
     "outDir": "dist",
-    "skipLibCheck": true,
-    "strictNullChecks": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "strictNullChecks": true,
+    "moduleResolution": "node",
+    "types": ["node", "jest"]
   }
 }

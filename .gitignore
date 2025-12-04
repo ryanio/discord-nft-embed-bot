@@ -3,3 +3,5 @@ yarn-error.log
 dist
 env.txt
 *.env
+coverage/
+.state

@@ -3,318 +3,491 @@ import {
   Client,
   EmbedBuilder,
   GatewayIntentBits,
+  type HexColorString,
   Partials,
-} from 'discord.js';
-import { logger } from './logger';
+} from "discord.js";
 import {
-  chain,
+  getCollections,
+  getSlugForCollection,
+  initCollectionSlugs,
+  initCollections,
+  isValidTokenId,
+  parseMessageMatches,
+  randomTokenId,
+} from "./collection";
+import {
+  MAX_EMBEDS_PER_MESSAGE,
+  ONE_SECOND_MS,
+  SECONDS_PER_MINUTE,
+  SEPARATOR,
+} from "./constants";
+import { createLogger, logger } from "./logger";
+import {
+  fetchBestListing,
+  fetchBestOffer,
+  fetchLastSale,
+  fetchNFT,
+  GET_OPTS,
+  getUsername,
+  urls,
+} from "./opensea";
+import { getStateManager } from "./state";
+import type {
+  CollectionConfig,
+  EmbedResult,
+  IncomingMessage,
+  Log,
+  TokenMatch,
+} from "./types";
+import {
   formatAmount,
-  imageForNFT,
-  type Log,
-  maxTokenId,
-  minTokenId,
-  openseaGet,
-  random,
-  separator,
-  username,
-} from './utils';
+  formatShortDate,
+  getHighResImage,
+  pluralize,
+} from "./utils";
 
-// Constants
-const ONE_SECOND_IN_MS = 1000;
-const SECONDS_PER_MINUTE = 60;
-const MAX_EMBEDS_PER_MESSAGE = 5;
-const NUMBER_REGEX = /^[0-9]+/;
-const HASHTAG_REGEX = /#(random|rand|\?|\d*)(\s|\n|\W|$)/g;
+const log = createLogger("Discord");
 
-const {
-  DISCORD_TOKEN,
-  OPENSEA_API_TOKEN,
-  TOKEN_NAME,
-  TOKEN_ADDRESS,
-  RANDOM_INTERVALS,
-  CUSTOM_DESCRIPTION,
-} = process.env;
+const { DISCORD_TOKEN, RANDOM_INTERVALS } = process.env;
+
+/** Max attempts to find a non-duplicate random token */
+const MAX_RANDOM_ATTEMPTS = 10;
 
 /**
- * OpenSea
+ * Build a Discord embed for a single NFT
  */
-export const opensea = {
-  GET_OPTS: {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'X-API-KEY': OPENSEA_API_TOKEN ?? '',
-    },
-  } as const,
-  api: 'https://api.opensea.io/api/v2/',
-  getAccount: (address: string) => `${opensea.api}accounts/${address}`,
-  getNFT: (tokenId: number) =>
-    `${opensea.api}chain/${chain}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}`,
-  getContract: () => `${opensea.api}chain/${chain}/contract/${TOKEN_ADDRESS}`,
-  getBestOffer: (tokenId: number) =>
-    `${opensea.api}offers/collection/${collectionSlug}/nfts/${tokenId}/best`,
-  getBestListing: (tokenId: number) =>
-    `${opensea.api}listings/collection/${collectionSlug}/nfts/${tokenId}/best`,
-  getEvents: (tokenId: number) =>
-    `${opensea.api}events/chain/${chain}/contract/${TOKEN_ADDRESS}/nfts/${tokenId}`,
-};
-
-/**
- * Fetch functions
- */
-let collectionSlug: string | undefined;
-const fetchCollectionSlug = async (address: string) => {
-  if (collectionSlug) {
-    return collectionSlug;
-  }
-  logger.info(`Getting collection slug for ${address} on chain ${chain}…`);
-  const url = opensea.getContract();
-  const log: Log = [];
-  const result = await openseaGet<{ collection: string }>(url, log);
-  for (const l of log) {
-    logger.info(l);
-  }
-  collectionSlug = result?.collection;
-  logger.info(`Got collection slug: ${collectionSlug}`);
-  return collectionSlug;
-};
-
-type OpenSeaOwner = { address: string };
-type NFT = { owners?: OpenSeaOwner[]; opensea_url: string; image_url?: string };
-type LastSale = {
-  payment: { quantity: number; decimals: number; symbol: string };
-  closing_date: number;
-};
-type BestOffer = {
-  criteria?: { collection?: unknown };
-  price: { value: number; decimals: number; currency: string };
-};
-type BestListing = {
-  price: { current: { value: number; decimals: number; currency: string } };
-};
-
-const fetchNFT = async (tokenId: number, log: Log): Promise<NFT> => {
-  log.push(`Fetching #${tokenId}…`);
-  const url = opensea.getNFT(tokenId);
-  const result = (await openseaGet<{ nft: NFT }>(url, log)) ?? undefined;
-  if (!result?.nft) {
-    throw new Error('Failed to fetch NFT');
-  }
-  return result.nft;
-};
-
-const fetchLastSale = async (
+const buildEmbed = async (
+  collection: CollectionConfig,
   tokenId: number,
-  log: Log
-): Promise<LastSale | undefined> => {
-  const url = `${opensea.getEvents(tokenId)}?event_type=sale&limit=1`;
-  const result = await openseaGet<{ asset_events?: LastSale[] }>(url, log);
-  return result?.asset_events?.[0];
-};
+  userLog: Log
+): Promise<EmbedBuilder | undefined> => {
+  if (!isValidTokenId(collection, tokenId)) {
+    userLog.push(`Skipping invalid token: ${collection.name} #${tokenId}`);
+    log.debug(`Invalid token ID: ${collection.name} #${tokenId}`);
+    return;
+  }
 
-const fetchBestOffer = async (
-  tokenId: number,
-  log: Log
-): Promise<BestOffer> => {
-  const url = opensea.getBestOffer(tokenId);
-  const result = await openseaGet<BestOffer>(url, log);
-  return (result ?? ({} as BestOffer)) as BestOffer;
-};
+  log.debug(`Building embed for ${collection.name} #${tokenId}`);
+  const startTime = Date.now();
 
-const fetchBestListing = async (
-  tokenId: number,
-  log: Log
-): Promise<BestListing> => {
-  const url = opensea.getBestListing(tokenId);
-  const result = await openseaGet<BestListing>(url, log);
-  return (result ?? ({} as BestListing)) as BestListing;
-};
-
-/**
- * Discord MessageEmbed
- */
-const messageEmbed = async (tokenId: number, log: Log) => {
-  if (tokenId < minTokenId || tokenId > maxTokenId || Number.isNaN(tokenId)) {
-    log.push(`Skipping, cannot process #${tokenId}`);
+  const slug = await getSlugForCollection(collection, userLog);
+  if (!slug) {
+    userLog.push(`No slug found for collection: ${collection.name}`);
+    log.warn(`No slug found for collection: ${collection.name}`);
     return;
   }
 
   const fields: { name: string; value: string; inline: boolean }[] = [];
-  const nft = await fetchNFT(tokenId, log);
+  const nft = await fetchNFT(collection, tokenId, userLog);
 
-  const getOwner = async () => {
-    const owners = nft.owners ?? [];
-    if (owners.length > 0) {
-      const owner = owners[0];
-      const name = await username(owner.address, log);
-      fields.push({
-        name: 'Owner',
-        value: name,
-        inline: true,
-      });
-    }
-  };
-
-  const getLastSale = async () => {
-    const lastSale = await fetchLastSale(tokenId, log);
-    if (lastSale) {
-      const { quantity, decimals, symbol } = lastSale.payment;
-      const price = formatAmount(quantity, decimals, symbol);
-      const date = new Date(lastSale.closing_date * ONE_SECOND_IN_MS);
-      const formattedDate = new Intl.DateTimeFormat('en-US', {
-        month: 'short',
-        year: '2-digit',
-      }).format(date);
-      fields.push({
-        name: 'Last Sale',
-        value: `${price} (${formattedDate.replace(' ', " '")})`,
-        inline: true,
-      });
-    }
-  };
-
-  const getBestListing = async () => {
-    const listing = await fetchBestListing(tokenId, log);
-    if (Object.keys(listing).length > 0) {
-      const { value, decimals, currency } = listing.price.current;
-      const price = formatAmount(value, decimals, currency);
-      fields.push({
-        name: 'Listed For',
-        value: price,
-        inline: true,
-      });
-    }
-  };
-
-  const getBestOffer = async () => {
-    // Get best offer
-    const offer = await fetchBestOffer(tokenId, log);
-    if (Object.keys(offer).length > 0 && !offer.criteria?.collection) {
-      const { value, decimals, currency } = offer.price;
-      const price = formatAmount(value, decimals, currency);
-      fields.push({
-        name: 'Best Offer',
-        value: price,
-        inline: true,
-      });
-    }
-  };
-
-  const _results = await Promise.all([
-    getOwner(),
-    getLastSale(),
-    getBestListing(),
-    getBestOffer(),
+  // Fetch all metadata in parallel
+  log.debug(`Fetching metadata for ${collection.name} #${tokenId}`);
+  const [lastSale, bestOffer, bestListing] = await Promise.all([
+    fetchLastSale(collection, tokenId, userLog),
+    fetchBestOffer(slug, tokenId, userLog),
+    fetchBestListing(slug, tokenId, userLog),
   ]);
 
-  // Format custom description
-  const description = (CUSTOM_DESCRIPTION ?? '').replace(
-    '{id}',
+  // Owner field
+  const owners = nft.owners ?? [];
+  if (owners.length > 0) {
+    const owner = owners.at(0);
+    if (owner) {
+      const name = await getUsername(owner.address, userLog);
+      fields.push({ name: "Owner", value: name, inline: true });
+      log.debug(`Owner: ${name}`);
+    }
+  }
+
+  // Last sale field
+  if (lastSale) {
+    const { quantity, decimals, symbol } = lastSale.payment;
+    const price = formatAmount(quantity, decimals, symbol);
+    const date = new Date(lastSale.closing_date * ONE_SECOND_MS);
+    const formattedDate = formatShortDate(date);
+    fields.push({
+      name: "Last Sale",
+      value: `${price} (${formattedDate})`,
+      inline: true,
+    });
+    log.debug(`Last sale: ${price}`);
+  }
+
+  // Best listing field
+  if (bestListing?.price?.current) {
+    const { value, decimals, currency } = bestListing.price.current;
+    const price = formatAmount(value, decimals, currency);
+    fields.push({ name: "Listed For", value: price, inline: true });
+    log.debug(`Listed for: ${price}`);
+  }
+
+  // Best offer field (skip collection-wide offers)
+  if (bestOffer?.price && !bestOffer.criteria?.collection) {
+    const { value, decimals, currency } = bestOffer.price;
+    const price = formatAmount(value, decimals, currency);
+    fields.push({ name: "Best Offer", value: price, inline: true });
+    log.debug(`Best offer: ${price}`);
+  }
+
+  // Build the embed
+  const description = (collection.customDescription ?? "").replace(
+    "{id}",
     tokenId.toString()
   );
 
   const embed = new EmbedBuilder()
-    .setColor('#121212')
-    .setTitle(`${TOKEN_NAME} #${tokenId}`)
+    .setColor((collection.color ?? "#121212") as HexColorString)
+    .setTitle(`${collection.name} #${tokenId}`)
     .setURL(nft.opensea_url)
-    .setFields(fields)
-    .setDescription(description);
+    .setFields(fields);
 
-  const image = imageForNFT(nft);
+  if (description) {
+    embed.setDescription(description);
+  }
+
+  const image = getHighResImage(nft.image_url);
   if (image) {
     embed.setImage(image);
   }
 
+  const duration = Date.now() - startTime;
+  log.debug(
+    `Built embed for ${collection.name} #${tokenId} with ${fields.length} fields (${duration}ms)`
+  );
+
   return embed;
 };
 
-const matches = (
-  args: {
-    content: string;
-    authorUsername: string;
-    channelDisplay: string;
-  },
-  log: Log
-) => {
-  const matchedIds: number[] = [];
-  HASHTAG_REGEX.lastIndex = 0;
-  let match = HASHTAG_REGEX.exec(args.content);
-  if (match !== null) {
-    log.push(
-      `${TOKEN_NAME} - Message from ${args.authorUsername} in #${args.channelDisplay}:\n> ${args.content}`
-    );
-  }
-  while (match !== null) {
-    const id = match[1];
-    if (id === 'random' || id === 'rand' || id === '?') {
-      // matches: 'random' or 'rand' or '?'
-      matchedIds.push(random());
-    } else if (NUMBER_REGEX.test(id)) {
-      // matches: number digits (token id)
-      matchedIds.push(Number(id));
-    } else {
-      log.push(`Skipping, could not understand input: ${id}`);
+/**
+ * Build embeds for multiple token matches
+ */
+const buildEmbedsForMatches = async (
+  matches: TokenMatch[],
+  userLog: Log
+): Promise<EmbedResult> => {
+  const embeds: EmbedBuilder[] = [];
+  const parts: string[] = [];
+
+  log.debug(`Building embeds for ${matches.length} match(es)`);
+
+  for (const match of matches.slice(0, MAX_EMBEDS_PER_MESSAGE)) {
+    const embed = await buildEmbed(match.collection, match.tokenId, userLog);
+    if (embed) {
+      embeds.push(embed);
+      const prefix = match.collection.prefix
+        ? `${match.collection.prefix}#`
+        : "#";
+      parts.push(`${prefix}${match.tokenId}`);
     }
-    match = HASHTAG_REGEX.exec(args.content);
   }
-  return matchedIds;
+
+  const embedLog = parts.length > 0 ? `Replied with ${parts.join(", ")}` : "";
+  return { embeds, embedLog };
 };
 
-const channelName = (channel: Channel | null): string => {
-  const obj = (channel ?? {}) as Record<string, unknown>;
-  const name = typeof obj.name === 'string' ? (obj.name as string) : undefined;
-  const id = typeof obj.id === 'string' ? (obj.id as string) : undefined;
-  const channelId =
-    typeof obj.channelId === 'string' ? (obj.channelId as string) : undefined;
-  return name ?? channelId ?? id ?? 'unknown-channel';
+/**
+ * Get channel name for logging
+ */
+const getChannelName = (channel: Channel | null): string => {
+  if (!channel) {
+    return "unknown-channel";
+  }
+  const obj = channel as unknown as Record<string, unknown>;
+  if (typeof obj.name === "string") {
+    return obj.name;
+  }
+  if (typeof obj.id === "string") {
+    return obj.id;
+  }
+  return "unknown-channel";
 };
 
-const sendMessage = async (channel: Channel | null, embed: EmbedBuilder) => {
-  const obj = (channel ?? {}) as Record<string, unknown>;
-  const sendFn = obj.send as
-    | ((arg: { embeds: EmbedBuilder[] }) => Promise<unknown>)
-    | undefined;
-  if (typeof sendFn === 'function') {
+/**
+ * Get channel display name from a message
+ */
+const getChannelDisplay = (msg: IncomingMessage): string => {
+  const chObj = (msg.channel ?? {}) as Record<string, unknown>;
+  if (typeof chObj.name === "string") {
+    return chObj.name;
+  }
+  if (typeof msg.channelId === "string") {
+    return msg.channelId;
+  }
+  return "unknown-channel";
+};
+
+/**
+ * Send an embed to a channel
+ */
+const sendEmbed = async (
+  channel: Channel | null,
+  embed: EmbedBuilder
+): Promise<void> => {
+  if (!channel) {
+    return;
+  }
+  const obj = channel as unknown as Record<string, unknown>;
+  if (typeof obj.send === "function") {
+    const sendFn = obj.send as (arg: {
+      embeds: EmbedBuilder[];
+    }) => Promise<unknown>;
     await sendFn({ embeds: [embed] });
   }
 };
 
-const setupRandomIntervals = async (client: Client) => {
+/**
+ * Process an incoming Discord message
+ */
+const processMessage = async (msg: IncomingMessage): Promise<void> => {
+  const userLog: Log = [];
+  const startTime = Date.now();
+
+  try {
+    const matches = parseMessageMatches(msg.content);
+
+    if (matches.length === 0) {
+      return;
+    }
+
+    const channelDisplay = getChannelDisplay(msg);
+
+    // Log the message
+    log.info(`Message from ${msg.author.username} in #${channelDisplay}`);
+    log.debug(`Content: ${msg.content}`);
+    userLog.push(
+      `Message from ${msg.author.username} in #${channelDisplay}:\n> ${msg.content}`
+    );
+
+    const { embeds, embedLog } = await buildEmbedsForMatches(matches, userLog);
+
+    if (embeds.length > 0) {
+      await msg.reply({ embeds });
+      userLog.push(embedLog);
+
+      const duration = Date.now() - startTime;
+      log.info(`${embedLog} (${duration}ms)`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    userLog.push(`Error: ${message}`);
+    log.error(`Error processing message: ${message}`);
+  }
+
+  if (userLog.length > 0) {
+    userLog.push(SEPARATOR);
+    for (const line of userLog) {
+      logger.info(line);
+    }
+  }
+};
+
+/**
+ * Get a random token that hasn't been recently sent to a channel
+ */
+const getUniqueRandomToken = (
+  collection: CollectionConfig,
+  channelId: string
+): number => {
+  const stateManager = getStateManager();
+
+  for (let attempt = 0; attempt < MAX_RANDOM_ATTEMPTS; attempt++) {
+    const tokenId = randomTokenId(collection);
+    if (!stateManager.wasRecentlySent(channelId, tokenId)) {
+      log.debug(
+        `Found unique token #${tokenId} for channel ${channelId} (attempt ${attempt + 1})`
+      );
+      return tokenId;
+    }
+    log.debug(
+      `Token #${tokenId} recently sent to channel ${channelId}, trying again`
+    );
+  }
+
+  // Fall back to any random token if we can't find a unique one
+  const tokenId = randomTokenId(collection);
+  log.debug(
+    `Could not find unique token after ${MAX_RANDOM_ATTEMPTS} attempts, using #${tokenId}`
+  );
+  return tokenId;
+};
+
+/**
+ * Parse random interval config to get target collections
+ *
+ * Format: CHANNEL_ID=minutes[:collection_option]
+ * - No option: default collection only
+ * - `*`: rotate through all collections
+ * - `prefix`: specific collection by prefix
+ * - `prefix1+prefix2`: rotate through listed collections (use + since , is separator)
+ */
+const parseRandomCollections = (
+  collectionOption: string | undefined
+): CollectionConfig[] => {
+  const allCollections = getCollections();
+  const defaultCollection = allCollections.find((c) => c.prefix === "");
+
+  if (!collectionOption) {
+    // No option = default collection only
+    return defaultCollection ? [defaultCollection] : [];
+  }
+
+  if (collectionOption === "*") {
+    // All collections
+    return allCollections;
+  }
+
+  // Specific collection(s) by prefix - use + as separator since , separates intervals
+  const prefixes = collectionOption.split("+").map((p) => p.trim());
+  const result: CollectionConfig[] = [];
+
+  for (const prefix of prefixes) {
+    // Empty string means default collection
+    const collection = allCollections.find(
+      (c) => c.prefix === (prefix === "default" ? "" : prefix)
+    );
+    if (collection) {
+      result.push(collection);
+    } else {
+      log.warn(`Unknown collection prefix in random config: "${prefix}"`);
+    }
+  }
+
+  return result;
+};
+
+/** Track rotation index per channel for multi-collection random */
+const rotationIndex = new Map<string, number>();
+
+/**
+ * Get the next collection in rotation for a channel
+ */
+const getNextCollection = (
+  channelId: string,
+  collections: CollectionConfig[]
+): CollectionConfig => {
+  if (collections.length === 1) {
+    return collections.at(0) as CollectionConfig;
+  }
+
+  const currentIndex = rotationIndex.get(channelId) ?? 0;
+  const collection = collections.at(
+    currentIndex % collections.length
+  ) as CollectionConfig;
+  rotationIndex.set(channelId, currentIndex + 1);
+
+  return collection;
+};
+
+/**
+ * Set up random interval posting for collections
+ *
+ * Format: CHANNEL_ID=minutes[:collection_option]
+ * Examples:
+ *   - 123456=30           (default collection every 30 min)
+ *   - 123456=30:*         (rotate all collections every 30 min)
+ *   - 123456=30:artifacts (artifacts collection every 30 min)
+ *   - 123456=30:default+artifacts (rotate between default and artifacts)
+ */
+const setupRandomIntervals = async (client: Client): Promise<void> => {
   if (!RANDOM_INTERVALS) {
+    log.debug("No random intervals configured");
     return;
   }
-  const intervals = RANDOM_INTERVALS.split(',');
-  for (const interval of intervals) {
-    const [channelId, minutesStr] = interval.split('=');
+
+  const stateManager = getStateManager();
+
+  log.info("Setting up random intervals");
+
+  for (const interval of RANDOM_INTERVALS.split(",")) {
+    const [channelId, configStr] = interval.split("=");
+    const [minutesStr, collectionOption] = (configStr ?? "").split(":");
     const minutes = Number(minutesStr);
+
+    if (!channelId || Number.isNaN(minutes) || minutes <= 0) {
+      log.warn(`Invalid random interval config: ${interval}`);
+      continue;
+    }
+
+    const targetCollections = parseRandomCollections(collectionOption);
+    if (targetCollections.length === 0) {
+      log.warn(`No valid collections for random interval: ${interval}`);
+      continue;
+    }
+
     const channel = await client.channels.fetch(channelId);
-    const chanName = channelName(channel);
-    logger.info(
-      `Sending random token every ${
-        minutes === 1 ? 'minute' : `${minutes} minutes`
-      } to #${chanName}`
+    const chanName = getChannelName(channel);
+
+    // Log what we're setting up
+    const collectionNames = targetCollections.map((c) => c.name).join(", ");
+    const rotateLabel = targetCollections.length > 1 ? " (rotating)" : "";
+    log.info(
+      `Random posting: ${collectionNames}${rotateLabel} to #${chanName} every ${pluralize(minutes, "minute")}`
     );
-    logger.info(separator);
+    logger.info(SEPARATOR);
+
     setInterval(
       async () => {
-        const tokenId = random();
-        const log: Log = [];
-        const embed = await messageEmbed(tokenId, log);
-        log.push(`Sending random token to #${chanName}`);
-        await sendMessage(channel, embed as EmbedBuilder);
-        if (log.length > 0) {
-          log.push(separator);
-          for (const l of log) {
-            logger.info(l);
+        const userLog: Log = [];
+        const startTime = Date.now();
+
+        // Get next collection in rotation
+        const collection = getNextCollection(channelId, targetCollections);
+        const tokenId = getUniqueRandomToken(collection, channelId);
+
+        const prefix = collection.prefix ? `${collection.prefix}#` : "#";
+        log.debug(
+          `Random interval triggered for #${chanName}, ${collection.name} ${prefix}${tokenId}`
+        );
+
+        const embed = await buildEmbed(collection, tokenId, userLog);
+
+        if (embed) {
+          // Track this token as recently sent
+          stateManager.addRecentToken(channelId, tokenId);
+          await stateManager.save();
+
+          userLog.push(
+            `Sending random ${collection.name} ${prefix}${tokenId} to #${chanName}`
+          );
+          await sendEmbed(channel, embed);
+
+          const duration = Date.now() - startTime;
+          log.info(
+            `Sent random ${collection.name} ${prefix}${tokenId} to #${chanName} (${duration}ms)`
+          );
+        }
+
+        if (userLog.length > 0) {
+          userLog.push(SEPARATOR);
+          for (const line of userLog) {
+            logger.info(line);
           }
         }
       },
-      minutes * SECONDS_PER_MINUTE * ONE_SECOND_IN_MS
+      minutes * SECONDS_PER_MINUTE * ONE_SECOND_MS
     );
   }
 };
 
-async function main() {
+/**
+ * Main entry point
+ */
+async function main(): Promise<void> {
+  logger.info(SEPARATOR);
+  logger.info("Starting discord-nft-embed-bot");
+
+  // Initialize collections from environment
+  initCollections();
+
+  // Fetch slugs for all collections
+  await initCollectionSlugs();
+
+  // Load persisted state
+  const stateManager = getStateManager();
+  await stateManager.load();
+
+  // Create Discord client
+  log.debug("Creating Discord client");
   const client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
@@ -324,102 +497,62 @@ async function main() {
     partials: [Partials.Message],
   });
 
-  if (!TOKEN_ADDRESS) {
-    throw new Error('TOKEN_ADDRESS is not set');
-  }
-  const slug = await fetchCollectionSlug(TOKEN_ADDRESS);
-  if (!slug) {
-    throw new Error('Could not find collection slug');
-  }
+  client.on("ready", async () => {
+    logger.info(SEPARATOR);
+    logger.info(`Logged in as ${client.user?.tag}!`);
 
-  client.on('ready', async () => {
-    logger.info(separator);
-    logger.info(`Logged in as ${client?.user?.tag}!`);
-    logger.info('Listening for messages…');
-    logger.info(separator);
+    const collections = getCollections();
+    logger.info(
+      `Listening for ${collections.length} ${pluralize(collections.length, "collection")}…`
+    );
+
+    for (const c of collections) {
+      const prefix = c.prefix ? `${c.prefix}#` : "#";
+      logger.info(`  • ${c.name}: ${prefix}1234, ${prefix}random`);
+    }
+
+    logger.info(SEPARATOR);
     await setupRandomIntervals(client);
   });
 
-  const buildEmbedsForTokenIds = async (
-    tokenIds: number[],
-    log: Log
-  ): Promise<{ embeds: EmbedBuilder[]; embedLog: string }> => {
-    const embeds: EmbedBuilder[] = [];
-    let embedLog = 'Replied with';
-    for (const tokenId of tokenIds.slice(0, MAX_EMBEDS_PER_MESSAGE)) {
-      const embed = await messageEmbed(tokenId, log);
-      if (embed) {
-        embeds.push(embed);
-        embedLog += ` #${tokenId}`;
-      }
-    }
-    return { embeds, embedLog };
-  };
-
-  type IncomingMessage = {
-    content: string;
-    author: { username: string; bot: boolean };
-    channel?: { name?: string } | null;
-    channelId?: string | null;
-    reply: (arg: { embeds: EmbedBuilder[] }) => Promise<unknown>;
-  };
-
-  const getChannelDisplay = (msg: IncomingMessage): string => {
-    const chObj = (msg.channel ?? {}) as Record<string, unknown>;
-    const msgObj = msg as unknown as Record<string, unknown>;
-    const name =
-      typeof chObj.name === 'string' ? (chObj.name as string) : undefined;
-    const channelId =
-      typeof msgObj.channelId === 'string'
-        ? (msgObj.channelId as string)
-        : undefined;
-    return name ?? channelId ?? 'unknown-channel';
-  };
-
-  const processMessage = async (msg: IncomingMessage) => {
-    const log: Log = [];
-    try {
-      const tokenIds = matches(
-        {
-          content: msg.content,
-          authorUsername: msg.author.username,
-          channelDisplay: getChannelDisplay(msg),
-        },
-        log
-      );
-      const { embeds, embedLog } = await buildEmbedsForTokenIds(tokenIds, log);
-      if (embeds.length > 0) {
-        await msg.reply({ embeds });
-        log.push(embedLog);
-      }
-    } catch (error) {
-      log.push(`Error: ${error}`);
-    }
-    if (log.length > 0) {
-      log.push(separator);
-      for (const l of log) {
-        logger.info(l);
-      }
-    }
-  };
-
-  client.on('messageCreate', async (message) => {
+  client.on("messageCreate", async (message) => {
     if (message.author.bot) {
       return;
     }
     await processMessage(message as unknown as IncomingMessage);
   });
 
-  /**
-   * Start
-   */
-  client.login(DISCORD_TOKEN);
+  log.debug("Connecting to Discord");
+  await client.login(DISCORD_TOKEN);
 }
 
 // Only auto-start when not under test
-if (process.env.NODE_ENV !== 'test') {
-  // eslint-disable-next-line unicorn/prefer-top-level-await
+if (process.env.NODE_ENV !== "test") {
   main();
 }
 
-export { main };
+// Export for testing
+export { main, buildEmbed, processMessage };
+
+// Re-export opensea utilities for test compatibility
+export const opensea = {
+  GET_OPTS,
+  api: "https://api.opensea.io/api/v2/",
+  getAccount: urls.account,
+  getNFT: (tokenId: number) => {
+    const collections = getCollections();
+    const defaultCollection = collections.find((c) => c.prefix === "");
+    if (!defaultCollection) {
+      return "";
+    }
+    return urls.nft(defaultCollection, tokenId);
+  },
+  getEvents: (tokenId: number) => {
+    const collections = getCollections();
+    const defaultCollection = collections.find((c) => c.prefix === "");
+    if (!defaultCollection) {
+      return "";
+    }
+    return urls.events(defaultCollection, tokenId);
+  },
+};

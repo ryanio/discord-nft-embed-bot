@@ -1,119 +1,58 @@
-import { formatUnits } from 'ethers';
-import { opensea } from './index';
-import { logger } from './logger';
-import { LRUCache } from './lru-cache';
+import { formatUnits } from "ethers";
+import {
+  DECIMAL_TRIM_LENGTH,
+  DECIMAL_TRIM_THRESHOLD,
+  HIGH_RES_IMAGE_WIDTH,
+  IMAGE_WIDTH_REGEX,
+  SEPARATOR,
+} from "./constants";
 
-const { CHAIN, MIN_TOKEN_ID, MAX_TOKEN_ID } = process.env;
-
-export type Log = string[];
-export const separator = '-'.repeat(60);
-
-// Constants to avoid magic numbers
-const USERNAME_CACHE_CAPACITY = 100;
-const ADDRESS_PREFIX_LENGTH = 7;
-const ADDRESS_SUFFIX_START_INDEX = 37;
-const ADDRESS_SUFFIX_END_INDEX = 42;
-const DECIMAL_TRIM_THRESHOLD = 4;
-const DECIMAL_TRIM_LENGTH = 5;
-const IMAGE_WIDTH_REGEX = /w=(\d)*/;
+/** Re-export separator for convenience */
+export const separator = SEPARATOR;
 
 /**
- * Env
- */
-export const chain = CHAIN ?? 'ethereum';
-export const minTokenId = Number(MIN_TOKEN_ID);
-export const maxTokenId = Number(MAX_TOKEN_ID);
-
-/**
- * Processes an OpenSea user object and returns, in order:
- * 1. An OpenSea username
- * 2. A short formatted address
- */
-const usernameCache = new LRUCache<string, string>(USERNAME_CACHE_CAPACITY);
-const usernameFormat = (userName: string, address: string) =>
-  userName === '' ? shortAddr(address) : userName;
-export const username = async (address: string, log: Log) => {
-  const cached = usernameCache.get(address);
-  if (cached) {
-    return usernameFormat(cached, address);
-  }
-
-  const account = await fetchAccount(address, log);
-  const resolvedUsername = account?.username ?? '';
-  usernameCache.put(address, resolvedUsername);
-  return usernameFormat(resolvedUsername, address);
-};
-
-export const openseaGet = async <T>(
-  url: string,
-  log: Log
-): Promise<T | undefined> => {
-  try {
-    const response = await fetch(url, opensea.GET_OPTS);
-    if (!response.ok) {
-      log.push(
-        `Fetch Error for ${url} - ${response.status}: ${response.statusText}`
-      );
-      // Emit detailed response body only at debug level
-      try {
-        const bodyText = await response.text();
-        logger.debug('Fetch debug response for', url, bodyText);
-      } catch (_e) {
-        // ignore JSON/stream errors in debug path
-      }
-      return;
-    }
-    const result = (await response.json()) as T;
-    return result;
-  } catch (error) {
-    log.push(`Fetch Error for ${url}: ${error?.message ?? error}`);
-  }
-};
-
-type OpenSeaAccount = { username?: string };
-const fetchAccount = (address: string, log: Log) => {
-  log.push(`Fetching account for ${address}…`);
-  const url = opensea.getAccount(address);
-  return openseaGet<OpenSeaAccount>(url, log);
-};
-
-type HasImageUrl = { image_url?: string };
-export const imageForNFT = (nft: HasImageUrl): string | undefined => {
-  return nft.image_url?.replace(IMAGE_WIDTH_REGEX, 'w=1000');
-};
-
-/**
- * Formats amount, decimals, and symbols to final string output.
+ * Format a token amount with decimals and symbol
+ * e.g., formatAmount(1000000, 6, "USDC") => "1 USDC"
  */
 export const formatAmount = (
   amount: number,
   decimals: number,
   symbol: string
-) => {
+): string => {
   let value = formatUnits(amount, decimals);
-  const split = value.split('.');
-  if (split[1].length > DECIMAL_TRIM_THRESHOLD) {
-    // Trim to max decimals
-    value = `${split[0]}.${split[1].slice(0, DECIMAL_TRIM_LENGTH)}`;
-  } else if (split[1] === '0') {
-    // If whole number remove '.0'
-    value = split[0];
+  const [whole, decimal] = value.split(".");
+
+  if (!decimal || decimal === "0") {
+    value = whole;
+  } else if (decimal.length > DECIMAL_TRIM_THRESHOLD) {
+    value = `${whole}.${decimal.slice(0, DECIMAL_TRIM_LENGTH)}`;
   }
+
   return `${value} ${symbol}`;
 };
 
 /**
- * Returns a shortened version of a full ethereum address
- * (e.g. 0x38a16…c7eb3)
+ * Get high-resolution image URL from an NFT
  */
-const shortAddr = (addr: string) =>
-  `${addr.slice(0, ADDRESS_PREFIX_LENGTH)}…${addr.slice(
-    ADDRESS_SUFFIX_START_INDEX,
-    ADDRESS_SUFFIX_END_INDEX
-  )}`;
+export const getHighResImage = (imageUrl?: string): string | undefined =>
+  imageUrl?.replace(IMAGE_WIDTH_REGEX, HIGH_RES_IMAGE_WIDTH);
 
 /**
- * Returns a random number specified by params, min and mix included.
+ * Format a date as "MMM 'YY" (e.g., "Dec '24")
  */
-export const random = (min = minTokenId, max = maxTokenId) =>
-  Math.floor(Math.random() * (max - min + 1) + min);
+export const formatShortDate = (date: Date): string => {
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    year: "2-digit",
+  }).format(date);
+  return formatted.replace(" ", " '");
+};
+
+/**
+ * Pluralize a word based on count
+ */
+export const pluralize = (
+  count: number,
+  singular: string,
+  plural?: string
+): string => (count === 1 ? singular : (plural ?? `${singular}s`));

@@ -1,0 +1,39 @@
+{
+  "asset_events": [
+    {
+      "event_type": "sale",
+      "event_timestamp": 1764803507,
+      "transaction": "0x7dff272cba965e6e6d0c76c2d364eba19e4e66da14ffcd90effb98098e57e5c0",
+      "order_hash": "",
+      "protocol_address": "",
+      "chain": "ethereum",
+      "payment": {
+        "quantity": "267000000000000",
+        "token_address": "0x0000000000000000000000000000000000000000",
+        "decimals": 18,
+        "symbol": "ETH"
+      },
+      "closing_date": 1764803507,
+      "seller": "0x107b2e855528f344556f8c766a6187326a2c2fa6",
+      "buyer": "0x00a839de7922491683f547a67795204763ff8237",
+      "quantity": 1,
+      "nft": {
+        "identifier": "1533",
+        "collection": "glyphbots",
+        "contract": "0xb6c2c2d2999c1b532e089a7ad4cb7f8c91cf5075",
+        "token_standard": "erc721",
+        "name": "GlyphBot #1533 - Fizzyprime",
+        "description": "Onchain text robots assembled from Unicode glyphs. Deterministic per tokenId.",
+        "image_url": "https://raw2.seadn.io/ethereum/0xb6c2c2d2999c1b532e089a7ad4cb7f8c91cf5075/e0a080e93632f4a6267fbdcc8d8326/9fe0a080e93632f4a6267fbdcc8d8326.svg",
+        "display_image_url": "https://raw2.seadn.io/ethereum/0xb6c2c2d2999c1b532e089a7ad4cb7f8c91cf5075/e0a080e93632f4a6267fbdcc8d8326/9fe0a080e93632f4a6267fbdcc8d8326.svg",
+        "display_animation_url": null,
+        "metadata_url": null,
+        "opensea_url": "https://opensea.io/assets/ethereum/0xb6c2c2d2999c1b532e089a7ad4cb7f8c91cf5075/1533",
+        "updated_at": "2025-12-04T01:23:31.298961",
+        "is_disabled": false,
+        "is_nsfw": false
+      }
+    }
+  ],
+  "next": "WyIwMTlhZTY3Yy03MzM4LTdmYzYtOWVjYy1lMjk3NGI1NzNlODkiXQ=="
+}

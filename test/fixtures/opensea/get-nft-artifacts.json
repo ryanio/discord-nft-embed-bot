@@ -1,0 +1,43 @@
+{
+  "nft": {
+    "identifier": "1",
+    "collection": "glyphbots-artifacts",
+    "contract": "0x7136496abfbab3d17c34a3cfc4cfbc68bfbccbcc",
+    "token_standard": "erc1155",
+    "name": "Vector the Kind: Quantum Infiltrator",
+    "description": "Artifact generated from GlyphBot #1",
+    "image_url": "https://i2c.seadn.io/ethereum/0x7136496abfbab3d17c34a3cfc4cfbc68bfbccbcc/10928ad8c0d687edcb10bf3835305e/5710928ad8c0d687edcb10bf3835305e.png",
+    "display_image_url": "https://i2c.seadn.io/ethereum/0x7136496abfbab3d17c34a3cfc4cfbc68bfbccbcc/10928ad8c0d687edcb10bf3835305e/5710928ad8c0d687edcb10bf3835305e.png",
+    "display_animation_url": null,
+    "metadata_url": null,
+    "opensea_url": "https://opensea.io/assets/ethereum/0x7136496abfbab3d17c34a3cfc4cfbc68bfbccbcc/1",
+    "updated_at": "2025-12-04T01:21:34.951782",
+    "is_disabled": false,
+    "is_nsfw": false,
+    "animation_url": null,
+    "is_suspicious": false,
+    "creator": "",
+    "traits": [
+      {
+        "trait_type": "Bot ID",
+        "display_type": null,
+        "max_value": null,
+        "value": "1"
+      },
+      {
+        "trait_type": "Minter",
+        "display_type": null,
+        "max_value": null,
+        "value": "0x00A839dE7922491683f547a67795204763ff8237"
+      }
+    ],
+    "owners": [
+      { "address": "0x00a839de7922491683f547a67795204763ff8237", "quantity": 1 }
+    ],
+    "rarity": {
+      "strategy_id": "openrarity",
+      "strategy_version": "1.0",
+      "rank": 9
+    }
+  }
+}

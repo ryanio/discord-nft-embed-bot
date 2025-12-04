@@ -1,0 +1,247 @@
+import {
+  COLLECTION_SLUG_CACHE_CAPACITY,
+  OPENSEA_API_BASE,
+  USERNAME_CACHE_CAPACITY,
+} from "./constants";
+import { createLogger, isDebugEnabled } from "./logger";
+import { LRUCache } from "./lru-cache";
+import type {
+  BestListing,
+  BestOffer,
+  CollectionConfig,
+  LastSale,
+  Log,
+  NFT,
+  OpenSeaAccount,
+} from "./types";
+
+const log = createLogger("OpenSea");
+
+const { OPENSEA_API_TOKEN } = process.env;
+
+/** OpenSea API request options */
+const GET_OPTS = {
+  method: "GET",
+  headers: {
+    Accept: "application/json",
+    "X-API-KEY": OPENSEA_API_TOKEN ?? "",
+  },
+} as const;
+
+/** Cache for collection slugs by address */
+const slugCache = new LRUCache<string, string>(COLLECTION_SLUG_CACHE_CAPACITY);
+
+/** Cache for usernames by address */
+const usernameCache = new LRUCache<string, string>(USERNAME_CACHE_CAPACITY);
+
+/**
+ * Generic OpenSea GET request with error handling
+ */
+export const openseaGet = async <T>(
+  url: string,
+  userLog: Log
+): Promise<T | undefined> => {
+  const startTime = Date.now();
+
+  try {
+    log.debug(`Fetching: ${url}`);
+    const response = await fetch(url, GET_OPTS);
+    const duration = Date.now() - startTime;
+
+    if (!response.ok) {
+      userLog.push(
+        `Fetch Error for ${url} - ${response.status}: ${response.statusText}`
+      );
+      log.warn(
+        `API error ${response.status} for ${url} (${duration}ms): ${response.statusText}`
+      );
+
+      if (isDebugEnabled()) {
+        try {
+          const bodyText = await response.text();
+          log.debug(`Response body: ${bodyText}`);
+        } catch {
+          // ignore stream errors in debug path
+        }
+      }
+      return;
+    }
+
+    log.debug(`Success: ${url} (${duration}ms)`);
+    return (await response.json()) as T;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    const message = error instanceof Error ? error.message : String(error);
+    userLog.push(`Fetch Error for ${url}: ${message}`);
+    log.error(`Request failed for ${url} (${duration}ms): ${message}`);
+  }
+};
+
+/** URL builders for OpenSea API */
+export const urls = {
+  account: (address: string) => `${OPENSEA_API_BASE}/accounts/${address}`,
+
+  nft: (collection: CollectionConfig, tokenId: number) =>
+    `${OPENSEA_API_BASE}/chain/${collection.chain}/contract/${collection.address}/nfts/${tokenId}`,
+
+  contract: (collection: CollectionConfig) =>
+    `${OPENSEA_API_BASE}/chain/${collection.chain}/contract/${collection.address}`,
+
+  bestOffer: (slug: string, tokenId: number) =>
+    `${OPENSEA_API_BASE}/offers/collection/${slug}/nfts/${tokenId}/best`,
+
+  bestListing: (slug: string, tokenId: number) =>
+    `${OPENSEA_API_BASE}/listings/collection/${slug}/nfts/${tokenId}/best`,
+
+  events: (collection: CollectionConfig, tokenId: number) =>
+    `${OPENSEA_API_BASE}/events/chain/${collection.chain}/contract/${collection.address}/nfts/${tokenId}`,
+};
+
+/**
+ * Fetch and cache the collection slug for a contract address
+ */
+export const fetchCollectionSlug = async (
+  collection: CollectionConfig,
+  userLog: Log
+): Promise<string | undefined> => {
+  const cacheKey = `${collection.chain}:${collection.address}`;
+  const cached = slugCache.get(cacheKey);
+
+  if (cached) {
+    log.debug(`Slug cache hit for ${collection.name}: ${cached}`);
+    return cached;
+  }
+
+  log.info(`Fetching slug for ${collection.name} (${collection.address})`);
+  const url = urls.contract(collection);
+  const result = await openseaGet<{ collection: string }>(url, userLog);
+
+  if (result?.collection) {
+    slugCache.put(cacheKey, result.collection);
+    log.info(`Got slug for ${collection.name}: ${result.collection}`);
+    return result.collection;
+  }
+
+  log.warn(`Failed to get slug for ${collection.name}`);
+};
+
+/**
+ * Fetch NFT data from OpenSea
+ */
+export const fetchNFT = async (
+  collection: CollectionConfig,
+  tokenId: number,
+  userLog: Log
+): Promise<NFT> => {
+  log.debug(`Fetching NFT: ${collection.name} #${tokenId}`);
+  userLog.push(`Fetching ${collection.name} #${tokenId}…`);
+
+  const url = urls.nft(collection, tokenId);
+  const result = await openseaGet<{ nft: NFT }>(url, userLog);
+
+  if (!result?.nft) {
+    log.error(`Failed to fetch NFT: ${collection.name} #${tokenId}`);
+    throw new Error(`Failed to fetch NFT #${tokenId}`);
+  }
+
+  log.debug(`Fetched NFT: ${collection.name} #${tokenId}`);
+  return result.nft;
+};
+
+/**
+ * Fetch the last sale event for an NFT
+ */
+export const fetchLastSale = async (
+  collection: CollectionConfig,
+  tokenId: number,
+  userLog: Log
+): Promise<LastSale | undefined> => {
+  log.debug(`Fetching last sale: ${collection.name} #${tokenId}`);
+
+  const url = `${urls.events(collection, tokenId)}?event_type=sale&limit=1`;
+  const result = await openseaGet<{ asset_events?: LastSale[] }>(url, userLog);
+  const sale = result?.asset_events?.at(0);
+
+  if (sale) {
+    log.debug(`Found last sale for ${collection.name} #${tokenId}`);
+  }
+
+  return sale;
+};
+
+/**
+ * Fetch the best offer for an NFT
+ */
+export const fetchBestOffer = (
+  slug: string,
+  tokenId: number,
+  userLog: Log
+): Promise<BestOffer | undefined> => {
+  log.debug(`Fetching best offer: ${slug} #${tokenId}`);
+  const url = urls.bestOffer(slug, tokenId);
+  return openseaGet<BestOffer>(url, userLog);
+};
+
+/**
+ * Fetch the best listing for an NFT
+ */
+export const fetchBestListing = (
+  slug: string,
+  tokenId: number,
+  userLog: Log
+): Promise<BestListing | undefined> => {
+  log.debug(`Fetching best listing: ${slug} #${tokenId}`);
+  const url = urls.bestListing(slug, tokenId);
+  return openseaGet<BestListing>(url, userLog);
+};
+
+/**
+ * Fetch account info from OpenSea
+ */
+const fetchAccount = (
+  address: string,
+  userLog: Log
+): Promise<OpenSeaAccount | undefined> => {
+  log.debug(`Fetching account: ${address}`);
+  const url = urls.account(address);
+  return openseaGet<OpenSeaAccount>(url, userLog);
+};
+
+/**
+ * Get username for an address, with caching
+ * Returns OpenSea username or shortened address
+ */
+export const getUsername = async (
+  address: string,
+  userLog: Log
+): Promise<string> => {
+  const cached = usernameCache.get(address);
+
+  if (cached !== undefined) {
+    const display = cached || shortAddress(address);
+    log.debug(`Username cache hit for ${address}: ${display}`);
+    return display;
+  }
+
+  const account = await fetchAccount(address, userLog);
+  const username = account?.username ?? "";
+  usernameCache.put(address, username);
+
+  const display = username || shortAddress(address);
+  log.debug(`Resolved username for ${address}: ${display}`);
+  return display;
+};
+
+/**
+ * Shorten an Ethereum address for display
+ * e.g., 0x38a16...c7eb3
+ */
+const shortAddress = (addr: string): string => {
+  const PREFIX_LEN = 7;
+  const SUFFIX_START = 37;
+  const SUFFIX_END = 42;
+  return `${addr.slice(0, PREFIX_LEN)}…${addr.slice(SUFFIX_START, SUFFIX_END)}`;
+};
+
+/** Export GET_OPTS for testing */
+export { GET_OPTS };
