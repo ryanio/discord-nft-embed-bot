@@ -54,7 +54,7 @@ Create a `.env` file in the root directory with your configuration:
 
 ```env
 # Required
-COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:10735:ethereum:#00ff88
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88
 OPENSEA_API_TOKEN=your_opensea_api_key
 DISCORD_TOKEN=your_discord_bot_token
 
@@ -67,7 +67,7 @@ LOG_LEVEL=info
 
 ```env
 # GlyphBots (default) + Artifacts (with "artifacts" prefix)
-COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:10735:ethereum:#00ff88,artifacts:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:10735:ethereum:#ff6b35
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88,artifacts:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:11111:ethereum:#ff6b35
 OPENSEA_API_TOKEN=your_opensea_api_key
 DISCORD_TOKEN=your_discord_bot_token
 
@@ -126,11 +126,13 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=85056&
 | `STATE_DIR` | Directory for state persistence | `.state` | `./data/state` |
 
 **RANDOM_INTERVALS Format:**
-- Single channel: `CHANNEL_ID=minutes`
+- Single channel: `CHANNEL_ID=minutes` (uses default collection, or rotates all if no default)
 - Multiple channels: `CHANNEL_ID1=5,CHANNEL_ID2=10`
 - Specific collection: `CHANNEL_ID=minutes:prefix`
 - All collections (rotating): `CHANNEL_ID=minutes:*`
 - Multiple collections (rotating): `CHANNEL_ID=minutes:default+artifacts`
+
+> 💡 **Note:** The "default collection" is the one configured **without a prefix**. If all collections have prefixes, omitting the collection option will rotate through all collections.
 
 **Examples:**
 ```env
@@ -197,10 +199,10 @@ COLLECTIONS=address:name:minId:maxId[:chain][:color],prefix:address:name:minId:m
 
 ```env
 # Single collection (GlyphBots)
-COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:10735:ethereum:#00ff88
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88
 
 # Multiple collections (GlyphBots default + Artifacts prefix)
-COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:10735:ethereum:#00ff88,artifacts:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:10735:ethereum:#ff6b35
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88,artifacts:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:11111:ethereum:#ff6b35
 ```
 
 ### Supported Message Syntax
@@ -405,7 +407,7 @@ Set your environment variables in your deployment platform:
 - Ensure min/max token IDs are set correctly in `COLLECTIONS`
 
 **Random intervals not working:**
-- Check `RANDOM_INTERVALS` format: `CHANNEL_ID=minutes`
+- Check `RANDOM_INTERVALS` format: `CHANNEL_ID=minutes` or `CHANNEL_ID=minutes:prefix`
 - Verify the bot has access to the specified channels
 
 **Collection prefix not working:**

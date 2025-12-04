@@ -328,8 +328,8 @@ const parseRandomCollections = (
   const defaultCollection = allCollections.find((c) => c.prefix === "");
 
   if (!collectionOption) {
-    // No option = default collection only
-    return defaultCollection ? [defaultCollection] : [];
+    // No option = default collection if one exists, otherwise rotate all
+    return defaultCollection ? [defaultCollection] : allCollections;
   }
 
   if (collectionOption === "*") {
