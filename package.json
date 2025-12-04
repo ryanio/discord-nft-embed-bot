@@ -1,6 +1,6 @@
 {
   "name": "discord-nft-embed-bot",
-  "version": "3.3.2",
+  "version": "3.3.3",
   "description": "A discord.js bot that listens to messages in channels and replies with items from an nft collection.",
   "author": "Ryan Ghods <ryan@ryanio.com>",
   "license": "MIT",

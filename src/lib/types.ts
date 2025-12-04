@@ -15,8 +15,10 @@ export type CollectionConfig = {
   chain: string;
   /** Minimum token ID in the collection */
   minTokenId: number;
-  /** Maximum token ID in the collection */
+  /** Maximum token ID in the collection (mutable when dynamicSupply is true) */
   maxTokenId: number;
+  /** Whether maxTokenId should be fetched from OpenSea (set when * is used) */
+  dynamicSupply?: boolean;
   /** Custom description template ({id} replaced with token ID) */
   customDescription?: string;
   /** Embed color (hex string) */
@@ -118,4 +120,14 @@ export type UsernameMatch = {
   collection?: CollectionConfig;
   /** The OpenSea username to fetch NFTs from */
   username: string;
+};
+
+/** OpenSea collection data (from /collections/{slug} endpoint) */
+export type OpenSeaCollection = {
+  collection: string;
+  name: string;
+  total_supply: number;
+  rarity?: {
+    total_supply: number;
+  };
 };

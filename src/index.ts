@@ -23,11 +23,11 @@ import {
   urls,
 } from "./api/opensea";
 import {
+  checkDynamicTokenId,
   getCollections,
   getSlugForCollection,
   initCollectionSlugs,
   initCollections,
-  isValidTokenId,
   parseMessageMatches,
   parseUsernameMatches,
   randomTokenId,
@@ -170,7 +170,9 @@ const buildEmbed = async (
   tokenId: number,
   userLog: Log
 ): Promise<EmbedBuilder | undefined> => {
-  if (!isValidTokenId(collection, tokenId)) {
+  // Use dynamic check for collections with dynamic supply (handles new mints)
+  const isValid = await checkDynamicTokenId(collection, tokenId, userLog);
+  if (!isValid) {
     userLog.push(`Skipping invalid token: ${collection.name} #${tokenId}`);
     log.debug(`Invalid token ID: ${collection.name} #${tokenId}`);
     return;

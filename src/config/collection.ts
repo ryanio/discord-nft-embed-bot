@@ -1,4 +1,4 @@
-import { fetchCollectionSlug } from "../api/opensea";
+import { fetchCollectionSlug, fetchTotalSupply } from "../api/opensea";
 import { createLogger, isDebugEnabled } from "../lib/logger";
 import type {
   CollectionConfig,
@@ -99,6 +99,8 @@ const parseExtraFields = (
 /**
  * Extract collection fields from parts array
  * Format: [prefix:]address:name:minId:maxId[:chain][:color][:customDescription][:imageUrl]
+ *
+ * If maxId is "*", the collection will use dynamic supply (fetched from OpenSea).
  */
 const extractCollectionFields = (
   parts: string[],
@@ -112,13 +114,19 @@ const extractCollectionFields = (
     parts.length > customDescStart ? parts.slice(customDescStart) : [];
   const { customDescription, customImageUrl } = parseExtraFields(extraParts);
 
+  const maxTokenIdStr = parts.at(4 + offset) ?? "";
+  const dynamicSupply = maxTokenIdStr === "*";
+  // Use a temporary placeholder when dynamic - will be set during initialization
+  const maxTokenId = dynamicSupply ? 0 : Number(maxTokenIdStr) || 10_000;
+
   return {
     prefix: (hasPrefix ? (parts.at(0) ?? "") : "").toLowerCase(),
     address: parts.at(1 + offset) ?? "",
     name: parts.at(2 + offset) ?? "",
     chain: parts.at(5 + offset) || DEFAULT_CHAIN,
     minTokenId: Number(parts.at(3 + offset)) || 0,
-    maxTokenId: Number(parts.at(4 + offset)) || 10_000,
+    maxTokenId,
+    dynamicSupply,
     color: parts.at(colorIndex) || DEFAULT_EMBED_COLOR,
     customDescription,
     customImageUrl,
@@ -158,9 +166,10 @@ const parseCollectionEntry = (
   }
 
   const label = config.prefix === "" ? "(default)" : `"${config.prefix}"`;
-  log.debug(
-    `Parsed collection ${label}: ${config.name} (${config.minTokenId}-${config.maxTokenId})`
-  );
+  const rangeDisplay = config.dynamicSupply
+    ? `${config.minTokenId}-* (dynamic)`
+    : `${config.minTokenId}-${config.maxTokenId}`;
+  log.debug(`Parsed collection ${label}: ${config.name} (${rangeDisplay})`);
 
   return config;
 };
@@ -317,7 +326,7 @@ export const getSlugForCollection = async (
 };
 
 /**
- * Initialize slugs for all collections
+ * Initialize slugs for all collections and fetch total supply for dynamic collections
  */
 export const initCollectionSlugs = async (): Promise<void> => {
   log.info("Fetching slugs for all collections");
@@ -327,6 +336,18 @@ export const initCollectionSlugs = async (): Promise<void> => {
     const slug = await getSlugForCollection(collection, userLog);
     if (!slug) {
       throw new Error(`Could not find slug for collection: ${collection.name}`);
+    }
+
+    // Fetch total supply for collections with dynamic supply (maxTokenId = "*")
+    if (collection.dynamicSupply) {
+      const totalSupply = await fetchTotalSupply(slug, userLog);
+      if (totalSupply === undefined) {
+        throw new Error(
+          `Could not fetch total supply for collection: ${collection.name}`
+        );
+      }
+      collection.maxTokenId = totalSupply;
+      log.info(`Set dynamic maxTokenId for ${collection.name}: ${totalSupply}`);
     }
   }
 
@@ -350,7 +371,7 @@ export const randomTokenId = (collection: CollectionConfig): number => {
 };
 
 /**
- * Check if a token ID is valid for a collection
+ * Check if a token ID is valid for a collection (synchronous check)
  */
 export const isValidTokenId = (
   collection: CollectionConfig,
@@ -359,6 +380,62 @@ export const isValidTokenId = (
   tokenId >= collection.minTokenId &&
   tokenId <= collection.maxTokenId &&
   !Number.isNaN(tokenId);
+
+/**
+ * Check if a token ID might be valid for a collection with dynamic supply
+ *
+ * For collections with dynamicSupply, this refreshes the total supply from OpenSea
+ * if the requested tokenId exceeds the current maxTokenId. This handles new mints.
+ *
+ * @returns true if the token is within range (possibly after refresh), false otherwise
+ */
+export const checkDynamicTokenId = async (
+  collection: CollectionConfig,
+  tokenId: number,
+  userLog: Log
+): Promise<boolean> => {
+  // Basic validation
+  if (Number.isNaN(tokenId) || tokenId < collection.minTokenId) {
+    return false;
+  }
+
+  // If within current range, it's valid
+  if (tokenId <= collection.maxTokenId) {
+    return true;
+  }
+
+  // If not dynamic supply, the token is out of range
+  if (!collection.dynamicSupply) {
+    return false;
+  }
+
+  // Token exceeds current max but collection has dynamic supply - refresh
+  log.info(
+    `Token #${tokenId} exceeds current max (${collection.maxTokenId}), checking for new mints...`
+  );
+
+  const slug = await getSlugForCollection(collection, userLog);
+  if (!slug) {
+    return false;
+  }
+
+  const totalSupply = await fetchTotalSupply(slug, userLog);
+  if (totalSupply === undefined) {
+    log.warn(`Failed to refresh total supply for ${collection.name}`);
+    return false;
+  }
+
+  // Update the cached maxTokenId
+  if (totalSupply > collection.maxTokenId) {
+    log.info(
+      `Updated maxTokenId for ${collection.name}: ${collection.maxTokenId} → ${totalSupply}`
+    );
+    collection.maxTokenId = totalSupply;
+  }
+
+  // Check again with updated max
+  return tokenId <= collection.maxTokenId;
+};
 
 /**
  * Build regex pattern for matching collection triggers
@@ -380,7 +457,80 @@ const buildMatchRegex = (): RegExp => {
 };
 
 /**
+ * Check if idPart represents a random request
+ */
+const isRandomKeyword = (idPart: string): boolean =>
+  idPart === "random" || idPart === "rand" || idPart === "?";
+
+/**
+ * Resolve token ID from idPart (either random or explicit)
+ */
+const resolveTokenId = (
+  idPart: string,
+  collection: CollectionConfig
+): { tokenId: number; isRandom: boolean } => {
+  const isRandom = isRandomKeyword(idPart);
+  const tokenId = isRandom ? randomTokenId(collection) : Number(idPart);
+  return { tokenId, isRandom };
+};
+
+/**
+ * Check if a token should be allowed through for dynamic validation later
+ */
+const shouldAllowForDynamicCheck = (
+  collection: CollectionConfig,
+  tokenId: number,
+  isRandom: boolean
+): boolean =>
+  !isRandom &&
+  Boolean(collection.dynamicSupply) &&
+  tokenId > collection.maxTokenId;
+
+/**
+ * Process a single regex match and add to matches array if valid
+ */
+const processMatch = (match: RegExpExecArray, matches: TokenMatch[]): void => {
+  const [_fullMatch, prefix = "", idPart] = match;
+  const collection = getCollectionByPrefix(prefix) ?? getDefaultCollection();
+
+  if (!collection) {
+    log.debug(`No collection found for prefix "${prefix}", skipping`);
+    return;
+  }
+
+  const { tokenId, isRandom } = resolveTokenId(idPart, collection);
+
+  if (isRandom) {
+    log.debug(
+      `Matched random request for ${collection.name}, resolved to #${tokenId}`
+    );
+  } else {
+    log.debug(`Matched specific token: ${collection.name} #${tokenId}`);
+  }
+
+  const allowDynamic = shouldAllowForDynamicCheck(
+    collection,
+    tokenId,
+    isRandom
+  );
+
+  if (isValidTokenId(collection, tokenId) || allowDynamic) {
+    matches.push({ collection, tokenId });
+    const suffix = allowDynamic ? " (pending dynamic check)" : "";
+    log.debug(`Added match: ${collection.name} #${tokenId}${suffix}`);
+  } else {
+    log.debug(
+      `Token #${tokenId} out of range for ${collection.name} (${collection.minTokenId}-${collection.maxTokenId})`
+    );
+  }
+};
+
+/**
  * Parse message content and extract token matches
+ *
+ * For collections with dynamicSupply, explicit token IDs (#123) are allowed
+ * even if they exceed the current maxTokenId - they'll be validated later
+ * with a fresh supply check.
  */
 export const parseMessageMatches = (content: string): TokenMatch[] => {
   const matches: TokenMatch[] = [];
@@ -388,35 +538,7 @@ export const parseMessageMatches = (content: string): TokenMatch[] => {
 
   let match: RegExpExecArray | null = regex.exec(content);
   while (match !== null) {
-    const [_fullMatch, prefix = "", idPart] = match;
-    const collection = getCollectionByPrefix(prefix) ?? getDefaultCollection();
-
-    if (!collection) {
-      log.debug(`No collection found for prefix "${prefix}", skipping`);
-      match = regex.exec(content);
-      continue;
-    }
-
-    let tokenId: number;
-    if (idPart === "random" || idPart === "rand" || idPart === "?") {
-      tokenId = randomTokenId(collection);
-      log.debug(
-        `Matched random request for ${collection.name}, resolved to #${tokenId}`
-      );
-    } else {
-      tokenId = Number(idPart);
-      log.debug(`Matched specific token: ${collection.name} #${tokenId}`);
-    }
-
-    if (isValidTokenId(collection, tokenId)) {
-      matches.push({ collection, tokenId });
-      log.debug(`Added match: ${collection.name} #${tokenId}`);
-    } else {
-      log.debug(
-        `Token #${tokenId} out of range for ${collection.name} (${collection.minTokenId}-${collection.maxTokenId})`
-      );
-    }
-
+    processMatch(match, matches);
     match = regex.exec(content);
   }
 

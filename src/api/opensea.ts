@@ -15,6 +15,7 @@ import type {
   Log,
   NFT,
   OpenSeaAccount,
+  OpenSeaCollection,
 } from "../lib/types";
 
 const log = createLogger("OpenSea");
@@ -117,6 +118,9 @@ export const urls = {
   contract: (collection: CollectionConfig) =>
     `${OPENSEA_API_BASE}/chain/${collection.chain}/contract/${collection.address}`,
 
+  /** Get collection info by slug (includes total_supply) */
+  collection: (slug: string) => `${OPENSEA_API_BASE}/collections/${slug}`,
+
   bestOffer: (slug: string, tokenId: number) =>
     `${OPENSEA_API_BASE}/offers/collection/${slug}/nfts/${tokenId}/best`,
 
@@ -162,6 +166,27 @@ export const fetchCollectionSlug = async (
   }
 
   log.warn(`Failed to get slug for ${collection.name}`);
+};
+
+/**
+ * Fetch total supply for a collection by slug
+ *
+ * This is used when maxTokenId is set to "*" to dynamically determine the collection size.
+ */
+export const fetchTotalSupply = async (
+  slug: string,
+  userLog: Log
+): Promise<number | undefined> => {
+  log.info(`Fetching total supply for collection: ${slug}`);
+  const url = urls.collection(slug);
+  const result = await openseaGet<OpenSeaCollection>(url, userLog);
+
+  if (result?.total_supply !== undefined) {
+    log.info(`Got total supply for ${slug}: ${result.total_supply}`);
+    return result.total_supply;
+  }
+
+  log.warn(`Failed to get total supply for ${slug}`);
 };
 
 /**

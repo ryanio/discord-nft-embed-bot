@@ -419,3 +419,177 @@ describe("getCollectionByPrefix", () => {
     expect(getByPrefix("Test")).toBeDefined();
   });
 });
+
+describe("dynamic supply (maxTokenId = *)", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it("parses * as dynamic supply marker", () => {
+    process.env.COLLECTIONS = "0xabc:TestNFT:1:*";
+    const { initCollections: init, getDefaultCollection: getDefault } =
+      jest.requireActual("../../src/config/collection");
+
+    init();
+    const defaultCol = getDefault();
+
+    expect(defaultCol.dynamicSupply).toBe(true);
+    expect(defaultCol.maxTokenId).toBe(0); // Placeholder until slug init
+  });
+
+  it("sets dynamicSupply to false for numeric maxId", () => {
+    process.env.COLLECTIONS = "0xabc:TestNFT:1:1000";
+    const { initCollections: init, getDefaultCollection: getDefault } =
+      jest.requireActual("../../src/config/collection");
+
+    init();
+    const defaultCol = getDefault();
+
+    expect(defaultCol.dynamicSupply).toBe(false);
+    expect(defaultCol.maxTokenId).toBe(1000);
+  });
+
+  it("parses * with chain and color", () => {
+    process.env.COLLECTIONS = "0xabc:TestNFT:1:*:polygon:#ff5500";
+    const { initCollections: init, getDefaultCollection: getDefault } =
+      jest.requireActual("../../src/config/collection");
+
+    init();
+    const defaultCol = getDefault();
+
+    expect(defaultCol.dynamicSupply).toBe(true);
+    expect(defaultCol.chain).toBe("polygon");
+    expect(defaultCol.color).toBe("#ff5500");
+  });
+
+  it("parses * for prefixed collection", () => {
+    process.env.COLLECTIONS = "art:0xabc:ArtNFT:1:*:ethereum:#ff0000";
+    const { initCollections: init, getCollectionByPrefix: getByPrefix } =
+      jest.requireActual("../../src/config/collection");
+
+    init();
+    const artCol = getByPrefix("art");
+
+    expect(artCol.dynamicSupply).toBe(true);
+    expect(artCol.maxTokenId).toBe(0);
+  });
+});
+
+describe("checkDynamicTokenId", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it("returns true for token within range", async () => {
+    process.env.COLLECTIONS = "0xabc:TestNFT:1:100";
+    const {
+      initCollections: init,
+      getDefaultCollection: getDefault,
+      checkDynamicTokenId,
+    } = jest.requireActual("../../src/config/collection");
+
+    init();
+    const collection = getDefault();
+    const result = await checkDynamicTokenId(collection, 50, []);
+
+    expect(result).toBe(true);
+  });
+
+  it("returns false for token out of range (non-dynamic)", async () => {
+    process.env.COLLECTIONS = "0xabc:TestNFT:1:100";
+    const {
+      initCollections: init,
+      getDefaultCollection: getDefault,
+      checkDynamicTokenId,
+    } = jest.requireActual("../../src/config/collection");
+
+    init();
+    const collection = getDefault();
+    const result = await checkDynamicTokenId(collection, 150, []);
+
+    expect(result).toBe(false);
+  });
+
+  it("returns false for token below minTokenId", async () => {
+    process.env.COLLECTIONS = "0xabc:TestNFT:10:100";
+    const {
+      initCollections: init,
+      getDefaultCollection: getDefault,
+      checkDynamicTokenId,
+    } = jest.requireActual("../../src/config/collection");
+
+    init();
+    const collection = getDefault();
+    const result = await checkDynamicTokenId(collection, 5, []);
+
+    expect(result).toBe(false);
+  });
+
+  it("returns false for NaN token", async () => {
+    process.env.COLLECTIONS = "0xabc:TestNFT:1:100";
+    const {
+      initCollections: init,
+      getDefaultCollection: getDefault,
+      checkDynamicTokenId,
+    } = jest.requireActual("../../src/config/collection");
+
+    init();
+    const collection = getDefault();
+    const result = await checkDynamicTokenId(collection, Number.NaN, []);
+
+    expect(result).toBe(false);
+  });
+});
+
+describe("parseMessageMatches with dynamic supply", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it("allows explicit tokens beyond max for dynamic collections", () => {
+    process.env.COLLECTIONS = "0xabc:TestNFT:1:*";
+    const { initCollections: init, parseMessageMatches } = jest.requireActual(
+      "../../src/config/collection"
+    );
+
+    init();
+    // maxTokenId is 0 (placeholder), so #100 would normally be invalid
+    const matches = parseMessageMatches("#100");
+
+    expect(matches.length).toBe(1);
+    expect(matches.at(0).tokenId).toBe(100);
+  });
+
+  it("rejects tokens beyond max for non-dynamic collections", () => {
+    process.env.COLLECTIONS = "0xabc:TestNFT:1:50";
+    const { initCollections: init, parseMessageMatches } = jest.requireActual(
+      "../../src/config/collection"
+    );
+
+    init();
+    const matches = parseMessageMatches("#100");
+
+    expect(matches.length).toBe(0);
+  });
+});

@@ -6,6 +6,7 @@ import type { CollectionConfig, Log } from "../../src/lib/types";
 const nftFixture = require("../fixtures/opensea/get-nft.json");
 const accountFixture = require("../fixtures/opensea/get-account.json");
 const contractFixture = require("../fixtures/opensea/get-contract.json");
+const collectionFixture = require("../fixtures/opensea/get-collection.json");
 const eventsFixture = require("../fixtures/opensea/get-events-sale.json");
 const bestOfferFixture = require("../fixtures/opensea/get-best-offer-by-nft.json");
 const bestListingFixture = require("../fixtures/opensea/get-best-listing-by-nft.json");
@@ -75,6 +76,11 @@ describe("opensea", () => {
       expect(url).toContain("events");
       expect(url).toContain(testCollection.chain);
     });
+
+    it("builds collection URL", () => {
+      const url = urls.collection("glyphbots");
+      expect(url).toContain("collections/glyphbots");
+    });
   });
 
   describe("fetchCollectionSlug", () => {
@@ -119,6 +125,44 @@ describe("opensea", () => {
       const second = await fetchSlug(glyphbotsCollection, log);
       expect(second).toBe("glyphbots");
       expect(fetchMock).toHaveBeenCalledTimes(1); // Still 1, no new fetch
+    });
+  });
+
+  describe("fetchTotalSupply", () => {
+    it("returns total supply from collection response", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce(JSON.stringify(collectionFixture));
+
+      const {
+        fetchTotalSupply: fetchSupply,
+      } = require("../../src/api/opensea");
+      const supply = await fetchSupply("glyphbots", log);
+
+      expect(supply).toBe(10_735);
+    });
+
+    it("returns undefined on error", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce("Error", { status: 500 });
+
+      const {
+        fetchTotalSupply: fetchSupply,
+      } = require("../../src/api/opensea");
+      const supply = await fetchSupply("invalid-slug", log);
+
+      expect(supply).toBeUndefined();
+    });
+
+    it("returns undefined when total_supply is missing", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce(JSON.stringify({ collection: "test" }));
+
+      const {
+        fetchTotalSupply: fetchSupply,
+      } = require("../../src/api/opensea");
+      const supply = await fetchSupply("test-slug", log);
+
+      expect(supply).toBeUndefined();
     });
   });
 

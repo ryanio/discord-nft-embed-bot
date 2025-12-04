@@ -181,7 +181,7 @@ COLLECTIONS=address:name:minId:maxId[:chain][:color][:imageUrl],prefix:address:n
 - `address` - Contract address
 - `name` - Display name
 - `minId` - Minimum token ID
-- `maxId` - Maximum token ID
+- `maxId` - Maximum token ID (use `*` for dynamic supply from OpenSea)
 - `chain` - Blockchain (optional, defaults to `ethereum`)
 - `color` - Embed color hex (optional, defaults to `#121212`)
 - `customDescription` - Custom description template (optional, `{id}` replaced with token ID, supports markdown links)
@@ -192,7 +192,7 @@ COLLECTIONS=address:name:minId:maxId[:chain][:color][:imageUrl],prefix:address:n
 - `address` - Contract address
 - `name` - Display name
 - `minId` - Minimum token ID
-- `maxId` - Maximum token ID
+- `maxId` - Maximum token ID (use `*` for dynamic supply from OpenSea)
 - `chain` - Blockchain (optional, defaults to `ethereum`)
 - `color` - Embed color hex (optional, defaults to `#121212`)
 - `customDescription` - Custom description template (optional, `{id}` replaced with token ID, supports markdown links)
@@ -202,10 +202,13 @@ COLLECTIONS=address:name:minId:maxId[:chain][:color][:imageUrl],prefix:address:n
 
 ```env
 # Single collection (GlyphBots)
-COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum
 
 # Multiple collections (GlyphBots default + Artifacts prefix)
 COLLECTIONS=bot:0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88,artifacts:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:11111:ethereum:#ff6b35t
+
+# With dynamic supply (fetched from OpenSea)
+COLLECTIONS=0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:*:ethereum
 
 # With custom image URL (useful when Discord can't display SVGs)
 COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88:https://glyphbots.com/bots/pngs/{id}.png
@@ -216,6 +219,26 @@ COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereu
 # With both custom description and image URL
 COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88:[View Bot](https://glyphbots.com/bot/{id}):https://glyphbots.com/bots/pngs/{id}.png
 ```
+
+### Dynamic Supply
+
+Use `*` as the `maxId` to automatically fetch the collection's total supply from OpenSea:
+
+```env
+# Total supply will be fetched from OpenSea on startup
+COLLECTIONS=0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:*:ethereum
+```
+
+**How it works:**
+1. On startup, the bot fetches the collection's `total_supply` from OpenSea and uses it as `maxTokenId`
+2. Random token requests (`#random`, `#?`) use the fetched supply as the upper bound
+3. Explicit token requests (e.g., `#12345`) will check OpenSea for new mints if they exceed the cached max
+4. This handles ongoing mints automatically - users can request newly minted tokens without restarting the bot
+
+**Benefits:**
+- No need to manually update `maxId` when new tokens are minted
+- Random requests always work within the actual supply range
+- Explicit requests for new mints are handled gracefully
 
 ### Supported Message Syntax
 
