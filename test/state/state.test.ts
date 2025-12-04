@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createStateManager, type StateManager } from "../src/state/state";
+import { createStateManager, type StateManager } from "../../src/state/state";
 
 const TEST_STATE_DIR = join(process.cwd(), ".state-test");
 const TEST_STATE_FILE = join(TEST_STATE_DIR, "test-state.json");

@@ -1,15 +1,15 @@
 import fetchMock from "jest-fetch-mock";
-import { openseaGet } from "../src/api/opensea";
-import type { Log } from "../src/lib/types";
+import { openseaGet } from "../../src/api/opensea";
+import type { Log } from "../../src/lib/types";
 import {
   formatAmount,
   formatShortDate,
   getHighResImage,
   pluralize,
-} from "../src/lib/utils";
+} from "../../src/lib/utils";
 
 // GlyphBots fixtures
-const nftFixture = require("./fixtures/opensea/get-nft.json");
+const nftFixture = require("../fixtures/opensea/get-nft.json");
 
 const USDC_DECIMALS = 6;
 const BIG_USDC = 123_456_789;

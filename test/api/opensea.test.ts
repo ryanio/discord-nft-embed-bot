@@ -1,15 +1,15 @@
 import fetchMock from "jest-fetch-mock";
-import { urls } from "../src/api/opensea";
-import type { CollectionConfig, Log } from "../src/lib/types";
+import { urls } from "../../src/api/opensea";
+import type { CollectionConfig, Log } from "../../src/lib/types";
 
 // GlyphBots fixtures from real OpenSea API responses
-const nftFixture = require("./fixtures/opensea/get-nft.json");
-const accountFixture = require("./fixtures/opensea/get-account.json");
-const contractFixture = require("./fixtures/opensea/get-contract.json");
-const eventsFixture = require("./fixtures/opensea/get-events-sale.json");
-const bestOfferFixture = require("./fixtures/opensea/get-best-offer-by-nft.json");
-const bestListingFixture = require("./fixtures/opensea/get-best-listing-by-nft.json");
-const accountNFTsFixture = require("./fixtures/opensea/get-nfts-by-account.json");
+const nftFixture = require("../fixtures/opensea/get-nft.json");
+const accountFixture = require("../fixtures/opensea/get-account.json");
+const contractFixture = require("../fixtures/opensea/get-contract.json");
+const eventsFixture = require("../fixtures/opensea/get-events-sale.json");
+const bestOfferFixture = require("../fixtures/opensea/get-best-offer-by-nft.json");
+const bestListingFixture = require("../fixtures/opensea/get-best-listing-by-nft.json");
+const accountNFTsFixture = require("../fixtures/opensea/get-nfts-by-account.json");
 
 // GlyphBots collection config (matching real contract)
 const glyphbotsCollection: CollectionConfig = {
@@ -82,7 +82,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify(contractFixture));
 
-      const { fetchCollectionSlug: fetchSlug } = require("../src/api/opensea");
+      const {
+        fetchCollectionSlug: fetchSlug,
+      } = require("../../src/api/opensea");
       const slug = await fetchSlug(glyphbotsCollection, log);
 
       expect(slug).toBe("glyphbots");
@@ -92,7 +94,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce("Error", { status: 500 });
 
-      const { fetchCollectionSlug: fetchSlug } = require("../src/api/opensea");
+      const {
+        fetchCollectionSlug: fetchSlug,
+      } = require("../../src/api/opensea");
       const slug = await fetchSlug(testCollection, log);
 
       expect(slug).toBeUndefined();
@@ -102,7 +106,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify(contractFixture));
 
-      const { fetchCollectionSlug: fetchSlug } = require("../src/api/opensea");
+      const {
+        fetchCollectionSlug: fetchSlug,
+      } = require("../../src/api/opensea");
 
       // First call - fetches from API
       const first = await fetchSlug(glyphbotsCollection, log);
@@ -121,7 +127,7 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify(nftFixture));
 
-      const { fetchNFT: fetchNFTLocal } = require("../src/api/opensea");
+      const { fetchNFT: fetchNFTLocal } = require("../../src/api/opensea");
       const nft = await fetchNFTLocal(glyphbotsCollection, 1, log);
 
       expect(nft).toBeDefined();
@@ -134,7 +140,7 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce("Error", { status: 404 });
 
-      const { fetchNFT: fetchNFTLocal } = require("../src/api/opensea");
+      const { fetchNFT: fetchNFTLocal } = require("../../src/api/opensea");
       await expect(fetchNFTLocal(testCollection, 99_999, log)).rejects.toThrow(
         "NFT not found"
       );
@@ -144,7 +150,7 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce("Error", { status: 404 });
 
-      const { fetchNFT: fetchNFTLocal } = require("../src/api/opensea");
+      const { fetchNFT: fetchNFTLocal } = require("../../src/api/opensea");
 
       try {
         await fetchNFTLocal(testCollection, 99_999, log);
@@ -168,7 +174,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify(eventsFixture));
 
-      const { fetchLastSale: fetchSaleLocal } = require("../src/api/opensea");
+      const {
+        fetchLastSale: fetchSaleLocal,
+      } = require("../../src/api/opensea");
       const sale = await fetchSaleLocal(glyphbotsCollection, 1533, log);
 
       expect(sale).toBeDefined();
@@ -181,7 +189,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify({ asset_events: [] }));
 
-      const { fetchLastSale: fetchSaleLocal } = require("../src/api/opensea");
+      const {
+        fetchLastSale: fetchSaleLocal,
+      } = require("../../src/api/opensea");
       const sale = await fetchSaleLocal(testCollection, 1, log);
 
       expect(sale).toBeUndefined();
@@ -193,7 +203,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify(bestOfferFixture));
 
-      const { fetchBestOffer: fetchOfferLocal } = require("../src/api/opensea");
+      const {
+        fetchBestOffer: fetchOfferLocal,
+      } = require("../../src/api/opensea");
       const offer = await fetchOfferLocal("glyphbots", 1, log);
 
       expect(offer).toBeDefined();
@@ -205,7 +217,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce("Error", { status: 500 });
 
-      const { fetchBestOffer: fetchOfferLocal } = require("../src/api/opensea");
+      const {
+        fetchBestOffer: fetchOfferLocal,
+      } = require("../../src/api/opensea");
       const offer = await fetchOfferLocal("test-slug", 1, log);
 
       expect(offer).toBeUndefined();
@@ -219,7 +233,7 @@ describe("opensea", () => {
 
       const {
         fetchBestListing: fetchListingLocal,
-      } = require("../src/api/opensea");
+      } = require("../../src/api/opensea");
       const listing = await fetchListingLocal("glyphbots", 9940, log);
 
       expect(listing).toBeDefined();
@@ -233,7 +247,7 @@ describe("opensea", () => {
 
       const {
         fetchBestListing: fetchListingLocal,
-      } = require("../src/api/opensea");
+      } = require("../../src/api/opensea");
       const listing = await fetchListingLocal("test-slug", 1, log);
 
       expect(listing).toBeUndefined();
@@ -249,7 +263,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify(accountFixture));
 
-      const { getUsername: getUsernameLocal } = require("../src/api/opensea");
+      const {
+        getUsername: getUsernameLocal,
+      } = require("../../src/api/opensea");
       const username = await getUsernameLocal(accountFixture.address, log);
 
       expect(username).toBe("ralx_z");
@@ -262,7 +278,9 @@ describe("opensea", () => {
       };
       fetchMock.mockResponseOnce(JSON.stringify(accountData));
 
-      const { getUsername: getUsernameLocal } = require("../src/api/opensea");
+      const {
+        getUsername: getUsernameLocal,
+      } = require("../../src/api/opensea");
       const username = await getUsernameLocal(
         "0x1234567890abcdef1234567890abcdef12345678",
         log
@@ -276,7 +294,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify(accountFixture));
 
-      const { getUsername: getUsernameLocal } = require("../src/api/opensea");
+      const {
+        getUsername: getUsernameLocal,
+      } = require("../../src/api/opensea");
 
       // First call - fetches from API
       const first = await getUsernameLocal(accountFixture.address, log);
@@ -293,7 +313,9 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockRejectOnce(new Error("Network error"));
 
-      const { getUsername: getUsernameLocal } = require("../src/api/opensea");
+      const {
+        getUsername: getUsernameLocal,
+      } = require("../../src/api/opensea");
       const username = await getUsernameLocal(
         "0x1234567890abcdef1234567890abcdef12345678",
         log
@@ -335,7 +357,7 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify(accountFixture));
 
-      const { fetchAccountAddress } = require("../src/api/opensea");
+      const { fetchAccountAddress } = require("../../src/api/opensea");
       const address = await fetchAccountAddress("ralx_z", log);
 
       expect(address).toBe("0x00a839de7922491683f547a67795204763ff8237");
@@ -345,7 +367,7 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce("Not found", { status: 404 });
 
-      const { fetchAccountAddress } = require("../src/api/opensea");
+      const { fetchAccountAddress } = require("../../src/api/opensea");
       const address = await fetchAccountAddress("nonexistent_user_12345", log);
 
       expect(address).toBeUndefined();
@@ -361,7 +383,7 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce(JSON.stringify(accountNFTsFixture));
 
-      const { fetchAccountNFTs } = require("../src/api/opensea");
+      const { fetchAccountNFTs } = require("../../src/api/opensea");
       const nfts = await fetchAccountNFTs(
         "0x00a839de7922491683f547a67795204763ff8237",
         "ethereum",
@@ -378,7 +400,7 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce("Error", { status: 500 });
 
-      const { fetchAccountNFTs } = require("../src/api/opensea");
+      const { fetchAccountNFTs } = require("../../src/api/opensea");
       const nfts = await fetchAccountNFTs(
         "0x1234567890abcdef1234567890abcdef12345678",
         "ethereum",
@@ -401,7 +423,7 @@ describe("opensea", () => {
       // Second call fetches NFTs
       fetchMock.mockResponseOnce(JSON.stringify(accountNFTsFixture));
 
-      const { fetchRandomUserNFT } = require("../src/api/opensea");
+      const { fetchRandomUserNFT } = require("../../src/api/opensea");
       const result = await fetchRandomUserNFT(
         "ralx_z",
         "ethereum",
@@ -419,7 +441,7 @@ describe("opensea", () => {
       const log: Log = [];
       fetchMock.mockResponseOnce("Not found", { status: 404 });
 
-      const { fetchRandomUserNFT } = require("../src/api/opensea");
+      const { fetchRandomUserNFT } = require("../../src/api/opensea");
       const result = await fetchRandomUserNFT(
         "nonexistent_user_12345",
         "ethereum",
@@ -434,7 +456,7 @@ describe("opensea", () => {
       fetchMock.mockResponseOnce(JSON.stringify(accountFixture));
       fetchMock.mockResponseOnce(JSON.stringify({ nfts: [], next: null }));
 
-      const { fetchRandomUserNFT } = require("../src/api/opensea");
+      const { fetchRandomUserNFT } = require("../../src/api/opensea");
       const result = await fetchRandomUserNFT(
         "ralx_z",
         "ethereum",

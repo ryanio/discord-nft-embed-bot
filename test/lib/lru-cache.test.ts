@@ -1,4 +1,4 @@
-import { LRUCache } from "../src/lib/lru-cache";
+import { LRUCache } from "../../src/lib/lru-cache";
 
 describe("LRUCache", () => {
   describe("basic operations", () => {
