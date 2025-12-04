@@ -211,6 +211,96 @@ describe("StateManager", () => {
     });
   });
 
+  describe("lastRandomPost", () => {
+    it("returns undefined when no last post exists", async () => {
+      await manager.load();
+      expect(manager.getLastRandomPost("channel1")).toBeUndefined();
+    });
+
+    it("sets and gets last random post timestamp", async () => {
+      await manager.load();
+      const now = new Date();
+      manager.setLastRandomPost("channel1", now);
+
+      const retrieved = manager.getLastRandomPost("channel1");
+      expect(retrieved).toBeDefined();
+      expect(retrieved?.getTime()).toBe(now.getTime());
+    });
+
+    it("uses current time when no timestamp provided", async () => {
+      await manager.load();
+      const before = Date.now();
+      manager.setLastRandomPost("channel1");
+      const after = Date.now();
+
+      const retrieved = manager.getLastRandomPost("channel1");
+      expect(retrieved).toBeDefined();
+      expect(retrieved?.getTime()).toBeGreaterThanOrEqual(before);
+      expect(retrieved?.getTime()).toBeLessThanOrEqual(after);
+    });
+
+    it("marks state as dirty when setting", async () => {
+      await manager.load();
+      expect(manager.isDirty()).toBe(false);
+
+      manager.setLastRandomPost("channel1");
+      expect(manager.isDirty()).toBe(true);
+    });
+
+    it("persists across save/load cycle", async () => {
+      await manager.load();
+      const timestamp = new Date("2024-01-15T12:00:00Z");
+      manager.setLastRandomPost("channel1", timestamp);
+      await manager.save();
+
+      const manager2 = createStateManager({
+        filePath: TEST_STATE_FILE,
+        enablePersistence: true,
+      });
+      await manager2.load();
+
+      const retrieved = manager2.getLastRandomPost("channel1");
+      expect(retrieved?.toISOString()).toBe(timestamp.toISOString());
+    });
+  });
+
+  describe("shouldPostRandom", () => {
+    it("returns true when no last post exists", async () => {
+      await manager.load();
+      expect(manager.shouldPostRandom("channel1", 60_000)).toBe(true);
+    });
+
+    it("returns true when interval has elapsed", async () => {
+      await manager.load();
+      // Set last post to 2 minutes ago
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+      manager.setLastRandomPost("channel1", twoMinutesAgo);
+
+      // Should post if interval is 1 minute
+      expect(manager.shouldPostRandom("channel1", 60_000)).toBe(true);
+    });
+
+    it("returns false when interval has not elapsed", async () => {
+      await manager.load();
+      // Set last post to 30 seconds ago
+      const thirtySecondsAgo = new Date(Date.now() - 30 * 1000);
+      manager.setLastRandomPost("channel1", thirtySecondsAgo);
+
+      // Should not post if interval is 1 minute
+      expect(manager.shouldPostRandom("channel1", 60_000)).toBe(false);
+    });
+
+    it("returns true at exact interval boundary", async () => {
+      await manager.load();
+      // Set last post to exactly 1 minute ago
+      const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+      manager.setLastRandomPost("channel1", oneMinuteAgo);
+
+      // Should post if interval is 1 minute
+      expect(manager.shouldPostRandom("channel1", 60_000)).toBe(true);
+    });
+  });
+
   describe("persistence disabled", () => {
     it("does not save when persistence is disabled", async () => {
       const inMemoryManager = createStateManager({

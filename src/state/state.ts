@@ -23,6 +23,8 @@ type StateData = {
   updatedAt: string;
   /** Recent random tokens per channel (to avoid repeats) */
   recentTokens: Record<string, number[]>;
+  /** Last random post timestamp per channel (ISO string) */
+  lastRandomPost: Record<string, string>;
   /** Custom state data (extensible) */
   custom: Record<string, unknown>;
 };
@@ -32,6 +34,7 @@ const createDefaultState = (): StateData => ({
   version: 1,
   updatedAt: new Date().toISOString(),
   recentTokens: {},
+  lastRandomPost: {},
   custom: {},
 });
 
@@ -105,6 +108,9 @@ class StateManager {
     }
     if (parsed.recentTokens !== undefined) {
       this.state.recentTokens = parsed.recentTokens;
+    }
+    if (parsed.lastRandomPost !== undefined) {
+      this.state.lastRandomPost = parsed.lastRandomPost;
     }
     if (parsed.custom !== undefined) {
       this.state.custom = parsed.custom;
@@ -196,6 +202,48 @@ class StateManager {
       this.markDirty();
       log.debug(`Cleared ${count} recent tokens for channel ${channelId}`);
     }
+  }
+
+  /**
+   * Get the last random post timestamp for a channel
+   * Returns undefined if no random post has been made
+   */
+  getLastRandomPost(channelId: string): Date | undefined {
+    const timestamp = this.state.lastRandomPost[channelId];
+    if (timestamp) {
+      return new Date(timestamp);
+    }
+    return;
+  }
+
+  /**
+   * Set the last random post timestamp for a channel
+   */
+  setLastRandomPost(channelId: string, timestamp: Date = new Date()): void {
+    this.state.lastRandomPost[channelId] = timestamp.toISOString();
+    this.markDirty();
+    log.debug(
+      `Set last random post for channel ${channelId}: ${timestamp.toISOString()}`
+    );
+  }
+
+  /**
+   * Check if enough time has passed since the last random post
+   * Returns true if no last post exists or if intervalMs has passed
+   */
+  shouldPostRandom(channelId: string, intervalMs: number): boolean {
+    const lastPost = this.getLastRandomPost(channelId);
+    if (!lastPost) {
+      log.debug(`No last random post for channel ${channelId}, should post`);
+      return true;
+    }
+    const elapsed = Date.now() - lastPost.getTime();
+    const shouldPost = elapsed >= intervalMs;
+    log.debug(
+      `Last random post for channel ${channelId} was ${Math.round(elapsed / 1000)}s ago, ` +
+        `interval is ${Math.round(intervalMs / 1000)}s, should post: ${shouldPost}`
+    );
+    return shouldPost;
   }
 
   /**

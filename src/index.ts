@@ -362,14 +362,65 @@ const getNextCollection = (
 };
 
 /**
+ * Post a random NFT to a channel
+ */
+const postRandomToChannel = async (
+  channel: TextBasedChannel,
+  channelId: string,
+  chanName: string,
+  targetCollections: CollectionConfig[]
+): Promise<void> => {
+  const stateManager = getStateManager();
+  const userLog: Log = [];
+  const startTime = Date.now();
+
+  // Get next collection in rotation
+  const collection = getNextCollection(channelId, targetCollections);
+  const tokenId = getUniqueRandomToken(collection, channelId);
+
+  const prefix = collection.prefix ? `${collection.prefix}#` : "#";
+  log.debug(
+    `Random posting to #${chanName}, ${collection.name} ${prefix}${tokenId}`
+  );
+
+  const embed = await buildEmbed(collection, tokenId, userLog);
+
+  if (embed) {
+    // Track this token and timestamp
+    stateManager.addRecentToken(channelId, tokenId);
+    stateManager.setLastRandomPost(channelId);
+    await stateManager.save();
+
+    userLog.push(
+      `Sending random ${collection.name} ${prefix}${tokenId} to #${chanName}`
+    );
+    await sendEmbed(channel, embed);
+
+    const duration = Date.now() - startTime;
+    log.info(
+      `Sent random ${collection.name} ${prefix}${tokenId} to #${chanName} (${duration}ms)`
+    );
+  }
+
+  if (userLog.length > 0) {
+    userLog.push(SEPARATOR);
+    for (const line of userLog) {
+      logger.info(line);
+    }
+  }
+};
+
+/**
  * Set up random interval posting for collections
  *
  * Format: CHANNEL_ID=minutes[:collection_option]
  * Examples:
- *   - 123456=30           (default collection every 30 min)
- *   - 123456=30:*         (rotate all collections every 30 min)
+ *   - 123456=30           (rotate all collections every 30 min)
+ *   - 123456=30:*         (rotate all collections every 30 min, explicit)
  *   - 123456=30:artifacts (artifacts collection every 30 min)
- *   - 123456=30:default+artifacts (rotate between default and artifacts)
+ *   - 123456=30:bots+artifacts (rotate between bots and artifacts)
+ *
+ * On startup, posts immediately if no previous post exists or if interval has elapsed.
  */
 const setupRandomIntervals = async (client: Client): Promise<void> => {
   if (!RANDOM_INTERVALS) {
@@ -401,47 +452,24 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
       continue;
     }
     const chanName = getChannelName(channel);
+    const intervalMs = minutes * SECONDS_PER_MINUTE * ONE_SECOND_MS;
 
+    // Post immediately on startup if no previous post or interval has elapsed
+    if (stateManager.shouldPostRandom(channelId, intervalMs)) {
+      log.info(`Posting initial random to #${chanName}`);
+      await postRandomToChannel(
+        channel,
+        channelId,
+        chanName,
+        targetCollections
+      );
+    }
+
+    // Set up recurring interval
     setInterval(
-      async () => {
-        const userLog: Log = [];
-        const startTime = Date.now();
-
-        // Get next collection in rotation
-        const collection = getNextCollection(channelId, targetCollections);
-        const tokenId = getUniqueRandomToken(collection, channelId);
-
-        const prefix = collection.prefix ? `${collection.prefix}#` : "#";
-        log.debug(
-          `Random interval triggered for #${chanName}, ${collection.name} ${prefix}${tokenId}`
-        );
-
-        const embed = await buildEmbed(collection, tokenId, userLog);
-
-        if (embed) {
-          // Track this token as recently sent
-          stateManager.addRecentToken(channelId, tokenId);
-          await stateManager.save();
-
-          userLog.push(
-            `Sending random ${collection.name} ${prefix}${tokenId} to #${chanName}`
-          );
-          await sendEmbed(channel, embed);
-
-          const duration = Date.now() - startTime;
-          log.info(
-            `Sent random ${collection.name} ${prefix}${tokenId} to #${chanName} (${duration}ms)`
-          );
-        }
-
-        if (userLog.length > 0) {
-          userLog.push(SEPARATOR);
-          for (const line of userLog) {
-            logger.info(line);
-          }
-        }
-      },
-      minutes * SECONDS_PER_MINUTE * ONE_SECOND_MS
+      () =>
+        postRandomToChannel(channel, channelId, chanName, targetCollections),
+      intervalMs
     );
   }
 };
