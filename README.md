@@ -175,7 +175,7 @@ The bot supports multiple NFT collections in a single `COLLECTIONS` environment 
 ### Format
 
 ```env
-COLLECTIONS=address:name:minId:maxId[:chain][:color],prefix:address:name:minId:maxId[:chain][:color]
+COLLECTIONS=address:name:minId:maxId[:chain][:color][:imageUrl],prefix:address:name:minId:maxId[:chain][:color][:imageUrl]
 ```
 
 **First collection (default):**
@@ -185,6 +185,7 @@ COLLECTIONS=address:name:minId:maxId[:chain][:color],prefix:address:name:minId:m
 - `maxId` - Maximum token ID
 - `chain` - Blockchain (optional, defaults to `ethereum`)
 - `color` - Embed color hex (optional, defaults to `#121212`)
+- `imageUrl` - Custom image URL template (optional, `{id}` replaced with token ID)
 
 **Additional collections:**
 - `prefix` - Trigger keyword (e.g., `artifacts`, `punk`)
@@ -194,6 +195,7 @@ COLLECTIONS=address:name:minId:maxId[:chain][:color],prefix:address:name:minId:m
 - `maxId` - Maximum token ID
 - `chain` - Blockchain (optional, defaults to `ethereum`)
 - `color` - Embed color hex (optional, defaults to `#121212`)
+- `imageUrl` - Custom image URL template (optional, `{id}` replaced with token ID)
 
 ### Example
 
@@ -203,6 +205,9 @@ COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereu
 
 # Multiple collections (GlyphBots default + Artifacts prefix)
 COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88,artifacts:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:11111:ethereum:#ff6b35
+
+# With custom image URL (useful when Discord can't display SVGs)
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88:https://glyphbots.com/bots/pngs/{id}.png
 ```
 
 ### Supported Message Syntax

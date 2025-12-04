@@ -21,6 +21,8 @@ export type CollectionConfig = {
   customDescription?: string;
   /** Embed color (hex string) */
   color?: string;
+  /** Custom image URL template ({id} replaced with token ID) - useful when Discord can't display SVGs */
+  customImageUrl?: string;
 };
 
 /** OpenSea NFT owner */
@@ -81,24 +83,8 @@ export type TokenMatch = {
   tokenId: number;
 };
 
-/** Discord message context */
-export type MessageContext = {
-  content: string;
-  authorUsername: string;
-  channelDisplay: string;
-};
-
 /** Result of building embeds */
 export type EmbedResult = {
   embeds: EmbedBuilder[];
   embedLog: string;
-};
-
-/** Incoming Discord message shape for processing */
-export type IncomingMessage = {
-  content: string;
-  author: { username: string; bot: boolean };
-  channel?: { name?: string } | null;
-  channelId?: string | null;
-  reply: (arg: { embeds: EmbedBuilder[] }) => Promise<unknown>;
 };

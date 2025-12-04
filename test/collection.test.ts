@@ -93,6 +93,58 @@ describe("collection", () => {
       expect(defaultCol.color).toBe("#ff5500");
     });
 
+    it("parses collection with custom image URL", () => {
+      process.env.COLLECTIONS =
+        "0xabc:TestNFT:1:1000:ethereum:#00ff88:https://example.com/images/{id}.png";
+      const { initCollections: init, getDefaultCollection: getDefault } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const defaultCol = getDefault();
+
+      expect(defaultCol.customImageUrl).toBe(
+        "https://example.com/images/{id}.png"
+      );
+    });
+
+    it("parses collection with custom image URL containing colons", () => {
+      process.env.COLLECTIONS =
+        "0xabc:TestNFT:1:1000:ethereum:#00ff88:https://example.com:8080/images/{id}.png";
+      const { initCollections: init, getDefaultCollection: getDefault } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const defaultCol = getDefault();
+
+      expect(defaultCol.customImageUrl).toBe(
+        "https://example.com:8080/images/{id}.png"
+      );
+    });
+
+    it("parses prefixed collection with custom image URL", () => {
+      process.env.COLLECTIONS =
+        "art:0xabc:ArtNFT:1:1000:ethereum:#ff0000:https://art.io/{id}.png";
+      const { initCollections: init, getCollectionByPrefix: getByPrefix } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const artCol = getByPrefix("art");
+
+      expect(artCol.name).toBe("ArtNFT");
+      expect(artCol.customImageUrl).toBe("https://art.io/{id}.png");
+    });
+
+    it("returns undefined for customImageUrl when not provided", () => {
+      process.env.COLLECTIONS = "0xabc:TestNFT:1:1000:ethereum:#00ff88";
+      const { initCollections: init, getDefaultCollection: getDefault } =
+        jest.requireActual("../src/config/collection");
+
+      init();
+      const defaultCol = getDefault();
+
+      expect(defaultCol.customImageUrl).toBeUndefined();
+    });
+
     it("parses multiple collections", () => {
       process.env.COLLECTIONS =
         "0xabc:MainNFT:1:1000,secondary:0xdef:SecondNFT:0:500";

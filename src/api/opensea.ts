@@ -34,19 +34,19 @@ const slugCache = new LRUCache<string, string>(COLLECTION_SLUG_CACHE_CAPACITY);
 /** Cache for usernames by address */
 const usernameCache = new LRUCache<string, string>(USERNAME_CACHE_CAPACITY);
 
-/** Options for openseaGet */
-type GetOptions = {
-  /** If true, 404 responses are treated as normal (no logging) */
-  silent404?: boolean;
-};
-
 /**
  * Generic OpenSea GET request with error handling
+ *
+ * @param url - The OpenSea API URL to fetch
+ * @param userLog - Log array for user-facing messages
+ * @param expect404 - If true, 404 responses are treated as "no data" (not an error).
+ *                    OpenSea returns 404 for best listing/offer endpoints when no
+ *                    listing or offer exists for a token.
  */
 export const openseaGet = async <T>(
   url: string,
   userLog: Log,
-  options: GetOptions = {}
+  expect404 = false
 ): Promise<T | undefined> => {
   const startTime = Date.now();
 
@@ -56,9 +56,9 @@ export const openseaGet = async <T>(
     const duration = Date.now() - startTime;
 
     if (!response.ok) {
-      // 404s are often expected (no listing, no offer, etc.)
-      if (response.status === 404 && options.silent404) {
-        log.debug(`Not found (expected): ${url} (${duration}ms)`);
+      // OpenSea returns 404 for best listing/offer when none exists - this is expected
+      if (response.status === 404 && expect404) {
+        log.debug(`No data found: ${url} (${duration}ms)`);
         return;
       }
 
@@ -184,7 +184,8 @@ export const fetchLastSale = async (
 
 /**
  * Fetch the best offer for an NFT
- * Returns undefined if no offer exists (404 is expected)
+ *
+ * OpenSea returns 404 when no offer exists for the token - this is expected.
  */
 export const fetchBestOffer = (
   slug: string,
@@ -193,12 +194,13 @@ export const fetchBestOffer = (
 ): Promise<BestOffer | undefined> => {
   log.debug(`Fetching best offer: ${slug} #${tokenId}`);
   const url = urls.bestOffer(slug, tokenId);
-  return openseaGet<BestOffer>(url, userLog, { silent404: true });
+  return openseaGet<BestOffer>(url, userLog, true);
 };
 
 /**
  * Fetch the best listing for an NFT
- * Returns undefined if no listing exists (404 is expected)
+ *
+ * OpenSea returns 404 when no listing exists for the token - this is expected.
  */
 export const fetchBestListing = (
   slug: string,
@@ -207,7 +209,7 @@ export const fetchBestListing = (
 ): Promise<BestListing | undefined> => {
   log.debug(`Fetching best listing: ${slug} #${tokenId}`);
   const url = urls.bestListing(slug, tokenId);
-  return openseaGet<BestListing>(url, userLog, { silent404: true });
+  return openseaGet<BestListing>(url, userLog, true);
 };
 
 /**

@@ -1,11 +1,13 @@
 import {
-  type Channel,
+  ChannelType,
   Client,
   EmbedBuilder,
   Events,
   GatewayIntentBits,
   type HexColorString,
+  type Message,
   Partials,
+  type TextBasedChannel,
 } from "discord.js";
 import {
   fetchBestListing,
@@ -18,6 +20,7 @@ import {
 } from "./api/opensea";
 import {
   getCollections,
+  getDefaultCollection,
   getSlugForCollection,
   initCollectionSlugs,
   initCollections,
@@ -35,7 +38,6 @@ import { createLogger, logger } from "./lib/logger";
 import type {
   CollectionConfig,
   EmbedResult,
-  IncomingMessage,
   Log,
   TokenMatch,
 } from "./lib/types";
@@ -141,7 +143,11 @@ const buildEmbed = async (
     embed.setDescription(description);
   }
 
-  const image = getHighResImage(nft.image_url);
+  // Use custom image URL if provided (useful when Discord can't display SVGs)
+  // Template supports {id} placeholder for token ID
+  const image = collection.customImageUrl
+    ? collection.customImageUrl.replace("{id}", tokenId.toString())
+    : getHighResImage(nft.image_url);
   if (image) {
     embed.setImage(image);
   }
@@ -184,89 +190,80 @@ const buildEmbedsForMatches = async (
 /**
  * Get channel name for logging
  */
-const getChannelName = (channel: Channel | null): string => {
+const getChannelName = (channel: TextBasedChannel | null): string => {
   if (!channel) {
     return "unknown-channel";
   }
-  const obj = channel as unknown as Record<string, unknown>;
-  if (typeof obj.name === "string") {
-    return obj.name;
+  // Guild channels have names, DMs don't
+  if ("name" in channel && channel.name) {
+    return channel.name;
   }
-  if (typeof obj.id === "string") {
-    return obj.id;
-  }
-  return "unknown-channel";
+  return channel.id;
 };
 
 /**
  * Get channel display name from a message
  */
-const getChannelDisplay = (msg: IncomingMessage): string => {
-  const chObj = (msg.channel ?? {}) as Record<string, unknown>;
-  if (typeof chObj.name === "string") {
-    return chObj.name;
+const getChannelDisplay = (message: Message): string => {
+  const { channel } = message;
+  if (channel.type === ChannelType.DM) {
+    return "DM";
   }
-  if (typeof msg.channelId === "string") {
-    return msg.channelId;
+  if ("name" in channel && channel.name) {
+    return channel.name;
   }
-  return "unknown-channel";
+  return channel.id;
 };
 
 /**
  * Send an embed to a channel
  */
 const sendEmbed = async (
-  channel: Channel | null,
+  channel: TextBasedChannel | null,
   embed: EmbedBuilder
 ): Promise<void> => {
   if (!channel) {
     return;
   }
-  const obj = channel as unknown as Record<string, unknown>;
-  if (typeof obj.send === "function") {
-    const sendFn = obj.send as (arg: {
-      embeds: EmbedBuilder[];
-    }) => Promise<unknown>;
-    await sendFn({ embeds: [embed] });
-  }
+  await channel.send({ embeds: [embed] });
 };
 
 /**
  * Process an incoming Discord message
  */
-const processMessage = async (msg: IncomingMessage): Promise<void> => {
+const processMessage = async (message: Message): Promise<void> => {
   const userLog: Log = [];
   const startTime = Date.now();
 
   try {
-    const matches = parseMessageMatches(msg.content);
+    const matches = parseMessageMatches(message.content);
 
     if (matches.length === 0) {
       return;
     }
 
-    const channelDisplay = getChannelDisplay(msg);
+    const channelDisplay = getChannelDisplay(message);
 
     // Log the message
-    log.info(`Message from ${msg.author.username} in #${channelDisplay}`);
-    log.debug(`Content: ${msg.content}`);
+    log.info(`Message from ${message.author.username} in #${channelDisplay}`);
+    log.debug(`Content: ${message.content}`);
     userLog.push(
-      `Message from ${msg.author.username} in #${channelDisplay}:\n> ${msg.content}`
+      `Message from ${message.author.username} in #${channelDisplay}:\n> ${message.content}`
     );
 
     const { embeds, embedLog } = await buildEmbedsForMatches(matches, userLog);
 
     if (embeds.length > 0) {
-      await msg.reply({ embeds });
+      await message.reply({ embeds });
       userLog.push(embedLog);
 
       const duration = Date.now() - startTime;
       log.info(`${embedLog} (${duration}ms)`);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    userLog.push(`Error: ${message}`);
-    log.error(`Error processing message: ${message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    userLog.push(`Error: ${errorMessage}`);
+    log.error(`Error processing message: ${errorMessage}`);
   }
 
   if (userLog.length > 0) {
@@ -311,7 +308,7 @@ const getUniqueRandomToken = (
  * Parse random interval config to get target collections
  *
  * Format: CHANNEL_ID=minutes[:collection_option]
- * - No option: default collection only
+ * - No option: default collection only (first collection if no explicit default)
  * - `*`: rotate through all collections
  * - `prefix`: specific collection by prefix
  * - `prefix1+prefix2`: rotate through listed collections (use + since , is separator)
@@ -320,11 +317,11 @@ const parseRandomCollections = (
   collectionOption: string | undefined
 ): CollectionConfig[] => {
   const allCollections = getCollections();
-  const defaultCollection = allCollections.find((c) => c.prefix === "");
 
   if (!collectionOption) {
-    // No option = default collection if one exists, otherwise rotate all
-    return defaultCollection ? [defaultCollection] : allCollections;
+    // No option = use default collection (consistent with getDefaultCollection behavior)
+    const defaultCollection = getDefaultCollection();
+    return defaultCollection ? [defaultCollection] : [];
   }
 
   if (collectionOption === "*") {
@@ -337,10 +334,12 @@ const parseRandomCollections = (
   const result: CollectionConfig[] = [];
 
   for (const prefix of prefixes) {
-    // Empty string means default collection
-    const collection = allCollections.find(
-      (c) => c.prefix === (prefix === "default" ? "" : prefix)
-    );
+    // "default" keyword means the default collection (empty prefix or first collection)
+    const collection =
+      prefix === "default"
+        ? getDefaultCollection()
+        : allCollections.find((c) => c.prefix === prefix);
+
     if (collection) {
       result.push(collection);
     } else {
@@ -409,6 +408,10 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
     }
 
     const channel = await client.channels.fetch(channelId);
+    if (!channel?.isTextBased()) {
+      log.warn(`Channel ${channelId} is not a text channel, skipping`);
+      continue;
+    }
     const chanName = getChannelName(channel);
 
     setInterval(
@@ -620,11 +623,11 @@ async function main(): Promise<void> {
     await setupRandomIntervals(client);
   });
 
-  client.on("messageCreate", async (message) => {
+  client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) {
       return;
     }
-    await processMessage(message as unknown as IncomingMessage);
+    await processMessage(message);
   });
 
   log.debug("Connecting to Discord");

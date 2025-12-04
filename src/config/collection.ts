@@ -30,6 +30,32 @@ const slugMap = new Map<string, string>();
 const isEthAddress = (value: string): boolean => value.startsWith("0x");
 
 /**
+ * Extract collection fields from parts array
+ * Format: [prefix:]address:name:minId:maxId[:chain][:color][:imageUrl]
+ */
+const extractCollectionFields = (
+  parts: string[],
+  hasPrefix: boolean
+): CollectionConfig => {
+  const offset = hasPrefix ? 0 : -1;
+  const imageUrlStart = 7 + offset;
+  const imageUrlParts = parts.slice(imageUrlStart);
+
+  return {
+    prefix: (hasPrefix ? (parts.at(0) ?? "") : "").toLowerCase(),
+    address: parts.at(1 + offset) ?? "",
+    name: parts.at(2 + offset) ?? "",
+    chain: parts.at(5 + offset) || DEFAULT_CHAIN,
+    minTokenId: Number(parts.at(3 + offset)) || 0,
+    maxTokenId: Number(parts.at(4 + offset)) || 10_000,
+    color: parts.at(6 + offset) || DEFAULT_EMBED_COLOR,
+    // Image URL may contain colons - join remaining parts
+    customImageUrl:
+      imageUrlParts.length > 0 ? imageUrlParts.join(":") : undefined,
+  };
+};
+
+/**
  * Parse a single collection entry
  *
  * For the first entry, we auto-detect whether a prefix is specified:
@@ -54,38 +80,14 @@ const parseCollectionEntry = (
     return;
   }
 
-  let prefix: string;
-  let address: string;
-  let name: string;
-  let minId: string;
-  let maxId: string;
-  let chain: string | undefined;
-  let color: string | undefined;
+  const config = extractCollectionFields(parts, hasPrefix);
 
-  if (hasPrefix) {
-    [prefix, address, name, minId, maxId, chain, color] = parts;
-  } else {
-    [address, name, minId, maxId, chain, color] = parts;
-    prefix = "";
-  }
-
-  if (!(address && name)) {
+  if (!(config.address && config.name)) {
     log.warn(`Missing required fields in collection config: ${entry}`);
     return;
   }
 
-  const config: CollectionConfig = {
-    prefix: prefix.toLowerCase(),
-    address,
-    name,
-    chain: chain || DEFAULT_CHAIN,
-    minTokenId: Number(minId) || 0,
-    maxTokenId: Number(maxId) || 10_000,
-    color: color || DEFAULT_EMBED_COLOR,
-  };
-
-  const isDefault = config.prefix === "";
-  const label = isDefault ? "(default)" : `"${config.prefix}"`;
+  const label = config.prefix === "" ? "(default)" : `"${config.prefix}"`;
   log.debug(
     `Parsed collection ${label}: ${config.name} (${config.minTokenId}-${config.maxTokenId})`
   );
