@@ -224,7 +224,10 @@ const sendEmbed = async (
   if (!channel) {
     return;
   }
-  await channel.send({ embeds: [embed] });
+  // PartialGroupDMChannel doesn't have send, so check first
+  if ("send" in channel && typeof channel.send === "function") {
+    await channel.send({ embeds: [embed] });
+  }
 };
 
 /**
