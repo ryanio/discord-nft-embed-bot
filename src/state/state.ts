@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { createLogger, isDebugEnabled } from "./logger";
+import { createLogger, isDebugEnabled } from "../lib/logger";
 
 const log = createLogger("State");
 
@@ -74,16 +74,6 @@ class StateManager {
       const parsed = JSON.parse(content) as Partial<StateData>;
       this.applyParsedState(parsed);
 
-      const channelCount = Object.keys(this.state.recentTokens).length;
-      const totalTokens = Object.values(this.state.recentTokens).reduce(
-        (sum, arr) => sum + arr.length,
-        0
-      );
-
-      log.info(
-        `Loaded state: ${channelCount} channels, ${totalTokens} recent tokens`
-      );
-
       if (isDebugEnabled()) {
         log.debug(`State version: ${this.state.version}`);
         log.debug(`Last updated: ${this.state.updatedAt}`);
@@ -96,7 +86,7 @@ class StateManager {
     } catch (error) {
       const maybeErr = error as { code?: string };
       if (maybeErr.code === "ENOENT") {
-        log.info("No existing state file, starting fresh");
+        log.debug("No existing state file, starting fresh");
         return;
       }
       log.error("Failed to load state:", error);
@@ -243,6 +233,18 @@ class StateManager {
    */
   getState(): Readonly<StateData> {
     return this.state;
+  }
+
+  /**
+   * Get state info for display
+   */
+  getStateInfo(): { channelCount: number; totalTokens: number } {
+    const channelCount = Object.keys(this.state.recentTokens).length;
+    const totalTokens = Object.values(this.state.recentTokens).reduce(
+      (sum, arr) => sum + arr.length,
+      0
+    );
+    return { channelCount, totalTokens };
   }
 
   /**

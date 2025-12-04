@@ -1,5 +1,5 @@
-import { isValidTokenId, randomTokenId } from "../src/collection";
-import type { CollectionConfig } from "../src/types";
+import { isValidTokenId, randomTokenId } from "../src/config/collection";
+import type { CollectionConfig } from "../src/lib/types";
 
 const NO_COLLECTIONS_ERROR_REGEX = /No collections configured/;
 
@@ -69,7 +69,7 @@ describe("collection", () => {
     it("parses single collection (default)", () => {
       process.env.COLLECTIONS = "0xabc:TestNFT:1:1000";
       const { initCollections: init, getDefaultCollection: getDefault } =
-        jest.requireActual("../src/collection");
+        jest.requireActual("../src/config/collection");
 
       init();
       const defaultCol = getDefault();
@@ -84,7 +84,7 @@ describe("collection", () => {
     it("parses single collection with chain and color", () => {
       process.env.COLLECTIONS = "0xabc:TestNFT:1:1000:polygon:#ff5500";
       const { initCollections: init, getDefaultCollection: getDefault } =
-        jest.requireActual("../src/collection");
+        jest.requireActual("../src/config/collection");
 
       init();
       const defaultCol = getDefault();
@@ -100,7 +100,7 @@ describe("collection", () => {
         initCollections: init,
         getCollections: getAll,
         getCollectionByPrefix: getByPrefix,
-      } = jest.requireActual("../src/collection");
+      } = jest.requireActual("../src/config/collection");
 
       init();
       const all = getAll();
@@ -118,7 +118,7 @@ describe("collection", () => {
     it("skips invalid entries with too few parts", () => {
       process.env.COLLECTIONS = "0xabc:TestNFT:1:1000,invalid:only:three";
       const { initCollections: init, getCollections: getAll } =
-        jest.requireActual("../src/collection");
+        jest.requireActual("../src/config/collection");
 
       init();
       const all = getAll();
@@ -129,7 +129,7 @@ describe("collection", () => {
     it("skips entries with missing address or name", () => {
       process.env.COLLECTIONS = "0xabc:TestNFT:1:1000,prefix::NoAddress:0:100";
       const { initCollections: init, getCollections: getAll } =
-        jest.requireActual("../src/collection");
+        jest.requireActual("../src/config/collection");
 
       init();
       const all = getAll();
@@ -142,32 +142,36 @@ describe("collection", () => {
       process.env.TOKEN_ADDRESS = undefined;
       process.env.TOKEN_NAME = undefined;
 
-      const { initCollections: init } = jest.requireActual("../src/collection");
+      const { initCollections: init } = jest.requireActual(
+        "../src/config/collection"
+      );
 
       expect(() => init()).toThrow(NO_COLLECTIONS_ERROR_REGEX);
     });
 
-    it("parses first collection with explicit prefix (no default)", () => {
+    it("parses first collection with explicit prefix (falls back as default)", () => {
       process.env.COLLECTIONS = "main:0xabc:MainNFT:1:1000";
       const {
         initCollections: init,
         getDefaultCollection: getDefault,
         getCollectionByPrefix: getByPrefix,
-      } = jest.requireActual("../src/collection");
+      } = jest.requireActual("../src/config/collection");
 
       init();
 
-      // No default collection since first entry has a prefix
-      expect(getDefault()).toBeUndefined();
+      // First collection becomes the fallback default for #1234 syntax
+      const defaultCol = getDefault();
+      expect(defaultCol).toBeDefined();
+      expect(defaultCol.name).toBe("MainNFT");
 
-      // But the prefixed collection exists
+      // The prefixed collection also works
       const main = getByPrefix("main");
       expect(main).toBeDefined();
       expect(main.name).toBe("MainNFT");
       expect(main.prefix).toBe("main");
     });
 
-    it("parses multiple collections all with prefixes (no default)", () => {
+    it("parses multiple collections all with prefixes (first becomes fallback default)", () => {
       process.env.COLLECTIONS =
         "primary:0xabc:MainNFT:1:1000,secondary:0xdef:SecondNFT:0:500";
       const {
@@ -175,13 +179,17 @@ describe("collection", () => {
         getDefaultCollection: getDefault,
         getCollections: getAll,
         getCollectionByPrefix: getByPrefix,
-      } = jest.requireActual("../src/collection");
+      } = jest.requireActual("../src/config/collection");
 
       init();
       const all = getAll();
 
       expect(all.length).toBe(2);
-      expect(getDefault()).toBeUndefined();
+
+      // First collection becomes fallback default for #1234 syntax
+      const defaultCol = getDefault();
+      expect(defaultCol).toBeDefined();
+      expect(defaultCol.name).toBe("MainNFT");
 
       const primary = getByPrefix("primary");
       expect(primary.name).toBe("MainNFT");
@@ -203,7 +211,7 @@ describe("collection", () => {
       process.env.CUSTOM_DESCRIPTION = "Custom desc for {id}";
 
       const { initCollections: init, getDefaultCollection: getDefault } =
-        jest.requireActual("../src/collection");
+        jest.requireActual("../src/config/collection");
 
       init();
       const defaultCol = getDefault();
@@ -223,25 +231,30 @@ describe("collection", () => {
     beforeEach(() => {
       // Set up a simple collection for matching tests
       process.env.COLLECTIONS = "0xabc:TestNFT:1:100";
-      const { initCollections: init } = jest.requireActual("../src/collection");
+      const { initCollections: init } = jest.requireActual(
+        "../src/config/collection"
+      );
       init();
     });
 
     it("returns empty array for non-matching content", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       expect(parse("hello world")).toEqual([]);
     });
 
     it("returns empty array for hashtags without numbers", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       expect(parse("#hello #world")).toEqual([]);
     });
 
     it("matches simple token IDs", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("Check out #42!");
 
       expect(matches.length).toBe(1);
@@ -249,8 +262,9 @@ describe("collection", () => {
     });
 
     it("matches multiple token IDs", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("Compare #10 and #20");
 
       expect(matches.length).toBe(2);
@@ -259,16 +273,18 @@ describe("collection", () => {
     });
 
     it("ignores token IDs outside range", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("#999");
 
       expect(matches.length).toBe(0);
     });
 
     it("matches #random keyword", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("Show me #random");
 
       expect(matches.length).toBe(1);
@@ -277,16 +293,18 @@ describe("collection", () => {
     });
 
     it("matches #rand keyword", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("#rand please");
 
       expect(matches.length).toBe(1);
     });
 
     it("matches #? shorthand", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("Give me #?");
 
       expect(matches.length).toBe(1);
@@ -296,13 +314,16 @@ describe("collection", () => {
   describe("parseMessageMatches with prefixes", () => {
     beforeEach(() => {
       process.env.COLLECTIONS = "0xabc:MainNFT:1:100,art:0xdef:ArtNFT:1:50";
-      const { initCollections: init } = jest.requireActual("../src/collection");
+      const { initCollections: init } = jest.requireActual(
+        "../src/config/collection"
+      );
       init();
     });
 
     it("matches default collection without prefix", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("#42");
 
       expect(matches.length).toBe(1);
@@ -310,8 +331,9 @@ describe("collection", () => {
     });
 
     it("matches prefixed collection", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("art#25");
 
       expect(matches.length).toBe(1);
@@ -320,8 +342,9 @@ describe("collection", () => {
     });
 
     it("matches prefix case-insensitively", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("ART#25");
 
       expect(matches.length).toBe(1);
@@ -329,8 +352,9 @@ describe("collection", () => {
     });
 
     it("matches mixed default and prefixed in same message", () => {
-      const { parseMessageMatches: parse } =
-        jest.requireActual("../src/collection");
+      const { parseMessageMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
       const matches = parse("#10 and art#20");
 
       expect(matches.length).toBe(2);
@@ -342,8 +366,9 @@ describe("collection", () => {
   describe("getHelpText", () => {
     it("returns formatted help text", () => {
       process.env.COLLECTIONS = "0xabc:MainNFT:1:100,art:0xdef:ArtNFT:1:50";
-      const { initCollections: init, getHelpText: help } =
-        jest.requireActual("../src/collection");
+      const { initCollections: init, getHelpText: help } = jest.requireActual(
+        "../src/config/collection"
+      );
 
       init();
       const text = help();
@@ -359,20 +384,24 @@ describe("collection", () => {
   describe("getCollectionByPrefix", () => {
     beforeEach(() => {
       process.env.COLLECTIONS = "0xabc:MainNFT:1:100,test:0xdef:TestNFT:1:50";
-      const { initCollections: init } = jest.requireActual("../src/collection");
+      const { initCollections: init } = jest.requireActual(
+        "../src/config/collection"
+      );
       init();
     });
 
     it("returns undefined for non-existent prefix", () => {
-      const { getCollectionByPrefix: getByPrefix } =
-        jest.requireActual("../src/collection");
+      const { getCollectionByPrefix: getByPrefix } = jest.requireActual(
+        "../src/config/collection"
+      );
 
       expect(getByPrefix("nonexistent")).toBeUndefined();
     });
 
     it("normalizes prefix to lowercase", () => {
-      const { getCollectionByPrefix: getByPrefix } =
-        jest.requireActual("../src/collection");
+      const { getCollectionByPrefix: getByPrefix } = jest.requireActual(
+        "../src/config/collection"
+      );
 
       expect(getByPrefix("TEST")).toBeDefined();
       expect(getByPrefix("Test")).toBeDefined();

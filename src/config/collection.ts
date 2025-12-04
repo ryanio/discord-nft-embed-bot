@@ -1,7 +1,7 @@
+import { fetchCollectionSlug } from "../api/opensea";
+import { createLogger, isDebugEnabled } from "../lib/logger";
+import type { CollectionConfig, Log, TokenMatch } from "../lib/types";
 import { DEFAULT_CHAIN, DEFAULT_EMBED_COLOR } from "./constants";
-import { createLogger, isDebugEnabled } from "./logger";
-import { fetchCollectionSlug } from "./opensea";
-import type { CollectionConfig, Log, TokenMatch } from "./types";
 
 const log = createLogger("Collection");
 
@@ -199,9 +199,16 @@ export const getCollections = (): CollectionConfig[] => [
 
 /**
  * Get the default (primary) collection
+ * Falls back to first collection if no explicit default (empty prefix) exists
  */
-export const getDefaultCollection = (): CollectionConfig | undefined =>
-  collectionMap.get("");
+export const getDefaultCollection = (): CollectionConfig | undefined => {
+  const explicit = collectionMap.get("");
+  if (explicit) {
+    return explicit;
+  }
+  // Fall back to first collection if no explicit default
+  return collectionMap.values().next().value;
+};
 
 /**
  * Get a collection by its prefix

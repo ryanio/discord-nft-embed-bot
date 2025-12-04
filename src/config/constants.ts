@@ -29,7 +29,7 @@ export const HIGH_RES_IMAGE_WIDTH = "w=1000";
 export const DEFAULT_EMBED_COLOR = "#121212";
 
 /** Log separator */
-export const SEPARATOR = "-".repeat(60);
+export const SEPARATOR = "═".repeat(80);
 
 /** Default chain */
 export const DEFAULT_CHAIN = "ethereum";

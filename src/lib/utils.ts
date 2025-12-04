@@ -5,7 +5,7 @@ import {
   HIGH_RES_IMAGE_WIDTH,
   IMAGE_WIDTH_REGEX,
   SEPARATOR,
-} from "./constants";
+} from "../config/constants";
 
 /** Re-export separator for convenience */
 export const separator = SEPARATOR;

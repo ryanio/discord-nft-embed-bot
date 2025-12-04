@@ -1,7 +1,7 @@
 import { EmbedBuilder } from "discord.js";
 import fetchMock from "jest-fetch-mock";
-import { GET_OPTS, urls } from "../src/opensea";
-import type { CollectionConfig, Log } from "../src/types";
+import { GET_OPTS, urls } from "../src/api/opensea";
+import type { CollectionConfig, Log } from "../src/lib/types";
 
 // GlyphBots fixtures from real OpenSea API responses
 const nftFixture = require("./fixtures/opensea/get-nft.json");

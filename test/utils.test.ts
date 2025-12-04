@@ -1,12 +1,12 @@
 import fetchMock from "jest-fetch-mock";
-import { openseaGet } from "../src/opensea";
-import type { Log } from "../src/types";
+import { openseaGet } from "../src/api/opensea";
+import type { Log } from "../src/lib/types";
 import {
   formatAmount,
   formatShortDate,
   getHighResImage,
   pluralize,
-} from "../src/utils";
+} from "../src/lib/utils";
 
 // GlyphBots fixtures
 const nftFixture = require("./fixtures/opensea/get-nft.json");

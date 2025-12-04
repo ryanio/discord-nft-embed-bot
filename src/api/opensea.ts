@@ -2,9 +2,9 @@ import {
   COLLECTION_SLUG_CACHE_CAPACITY,
   OPENSEA_API_BASE,
   USERNAME_CACHE_CAPACITY,
-} from "./constants";
-import { createLogger, isDebugEnabled } from "./logger";
-import { LRUCache } from "./lru-cache";
+} from "../config/constants";
+import { createLogger, isDebugEnabled } from "../lib/logger";
+import { LRUCache } from "../lib/lru-cache";
 import type {
   BestListing,
   BestOffer,
@@ -13,7 +13,7 @@ import type {
   Log,
   NFT,
   OpenSeaAccount,
-} from "./types";
+} from "../lib/types";
 
 const log = createLogger("OpenSea");
 
@@ -34,12 +34,19 @@ const slugCache = new LRUCache<string, string>(COLLECTION_SLUG_CACHE_CAPACITY);
 /** Cache for usernames by address */
 const usernameCache = new LRUCache<string, string>(USERNAME_CACHE_CAPACITY);
 
+/** Options for openseaGet */
+type GetOptions = {
+  /** If true, 404 responses are treated as normal (no logging) */
+  silent404?: boolean;
+};
+
 /**
  * Generic OpenSea GET request with error handling
  */
 export const openseaGet = async <T>(
   url: string,
-  userLog: Log
+  userLog: Log,
+  options: GetOptions = {}
 ): Promise<T | undefined> => {
   const startTime = Date.now();
 
@@ -49,6 +56,12 @@ export const openseaGet = async <T>(
     const duration = Date.now() - startTime;
 
     if (!response.ok) {
+      // 404s are often expected (no listing, no offer, etc.)
+      if (response.status === 404 && options.silent404) {
+        log.debug(`Not found (expected): ${url} (${duration}ms)`);
+        return;
+      }
+
       userLog.push(
         `Fetch Error for ${url} - ${response.status}: ${response.statusText}`
       );
@@ -171,6 +184,7 @@ export const fetchLastSale = async (
 
 /**
  * Fetch the best offer for an NFT
+ * Returns undefined if no offer exists (404 is expected)
  */
 export const fetchBestOffer = (
   slug: string,
@@ -179,11 +193,12 @@ export const fetchBestOffer = (
 ): Promise<BestOffer | undefined> => {
   log.debug(`Fetching best offer: ${slug} #${tokenId}`);
   const url = urls.bestOffer(slug, tokenId);
-  return openseaGet<BestOffer>(url, userLog);
+  return openseaGet<BestOffer>(url, userLog, { silent404: true });
 };
 
 /**
  * Fetch the best listing for an NFT
+ * Returns undefined if no listing exists (404 is expected)
  */
 export const fetchBestListing = (
   slug: string,
@@ -192,7 +207,7 @@ export const fetchBestListing = (
 ): Promise<BestListing | undefined> => {
   log.debug(`Fetching best listing: ${slug} #${tokenId}`);
   const url = urls.bestListing(slug, tokenId);
-  return openseaGet<BestListing>(url, userLog);
+  return openseaGet<BestListing>(url, userLog, { silent404: true });
 };
 
 /**

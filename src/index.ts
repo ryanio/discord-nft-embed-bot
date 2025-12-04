@@ -8,22 +8,6 @@ import {
   Partials,
 } from "discord.js";
 import {
-  getCollections,
-  getSlugForCollection,
-  initCollectionSlugs,
-  initCollections,
-  isValidTokenId,
-  parseMessageMatches,
-  randomTokenId,
-} from "./collection";
-import {
-  MAX_EMBEDS_PER_MESSAGE,
-  ONE_SECOND_MS,
-  SECONDS_PER_MINUTE,
-  SEPARATOR,
-} from "./constants";
-import { createLogger, logger } from "./logger";
-import {
   fetchBestListing,
   fetchBestOffer,
   fetchLastSale,
@@ -31,21 +15,32 @@ import {
   GET_OPTS,
   getUsername,
   urls,
-} from "./opensea";
-import { getStateManager } from "./state";
+} from "./api/opensea";
+import {
+  getCollections,
+  getSlugForCollection,
+  initCollectionSlugs,
+  initCollections,
+  isValidTokenId,
+  parseMessageMatches,
+  randomTokenId,
+} from "./config/collection";
+import {
+  MAX_EMBEDS_PER_MESSAGE,
+  ONE_SECOND_MS,
+  SECONDS_PER_MINUTE,
+  SEPARATOR,
+} from "./config/constants";
+import { createLogger, logger } from "./lib/logger";
 import type {
   CollectionConfig,
   EmbedResult,
   IncomingMessage,
   Log,
   TokenMatch,
-} from "./types";
-import {
-  formatAmount,
-  formatShortDate,
-  getHighResImage,
-  pluralize,
-} from "./utils";
+} from "./lib/types";
+import { formatAmount, formatShortDate, getHighResImage } from "./lib/utils";
+import { getStateManager } from "./state/state";
 
 const log = createLogger("Embed");
 
@@ -397,11 +392,6 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
 
   const stateManager = getStateManager();
 
-  // Print header for random intervals config
-  logger.info("");
-  logger.info("┌─ ⏱️  RANDOM INTERVALS");
-  logger.info("│");
-
   for (const interval of RANDOM_INTERVALS.split(",")) {
     const [channelId, configStr] = interval.split("=");
     const [minutesStr, collectionOption] = (configStr ?? "").split(":");
@@ -420,20 +410,6 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
 
     const channel = await client.channels.fetch(channelId);
     const chanName = getChannelName(channel);
-    const collectionLabel = getCollectionLabel(collectionOption);
-
-    // Print config for this interval
-    logger.info(`│  📢  Channel #${chanName}`);
-    logger.info(`│     ├─ Interval: ${minutes} minute(s)`);
-    logger.info(`│     └─ Collections: ${collectionLabel}`);
-    logger.info("│");
-
-    // Log what we're setting up
-    const collectionNames = targetCollections.map((c) => c.name).join(", ");
-    const rotateLabel = targetCollections.length > 1 ? " (rotating)" : "";
-    log.info(
-      `Random posting: ${collectionNames}${rotateLabel} to #${chanName} every ${pluralize(minutes, "minute")}`
-    );
 
     setInterval(
       async () => {
@@ -477,9 +453,6 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
       minutes * SECONDS_PER_MINUTE * ONE_SECOND_MS
     );
   }
-
-  logger.info("└─");
-  logger.info("");
 };
 
 /**
@@ -509,13 +482,8 @@ const printBanner = (): void => {
  * Get human-readable label for collection option in random intervals
  */
 const getCollectionLabel = (collectionOption: string | undefined): string => {
-  if (!collectionOption) {
-    return "default collection";
-  }
-  if (collectionOption === "*") {
-    return "all collections";
-  }
-  return collectionOption.replace(/\+/g, ", ");
+  const collections = parseRandomCollections(collectionOption);
+  return collections.map((c) => c.name).join(", ");
 };
 
 /**
@@ -533,6 +501,50 @@ const printCollectionConfig = (c: CollectionConfig): void => {
   logger.info(`│     ├─ Syntax: ${syntax}`);
   logger.info(`│     └─ Token Range: ${tokenRange}`);
   logger.info("│");
+};
+
+/**
+ * Print random intervals configuration
+ */
+const printRandomIntervalsConfig = (): void => {
+  if (!RANDOM_INTERVALS) {
+    return;
+  }
+
+  logger.info("│");
+  logger.info("├─ ⏱️  RANDOM INTERVALS");
+  logger.info("│");
+
+  for (const interval of RANDOM_INTERVALS.split(",")) {
+    const [channelId, configStr] = interval.split("=");
+    const [minutesStr, collectionOption] = (configStr ?? "").split(":");
+    const minutes = Number(minutesStr);
+
+    if (!channelId || Number.isNaN(minutes) || minutes <= 0) {
+      continue;
+    }
+
+    const collectionLabel = getCollectionLabel(collectionOption);
+
+    logger.info(`│  📢  Channel ${channelId}`);
+    logger.info(`│     ├─ Interval: ${minutes} minute(s)`);
+    logger.info(`│     └─ Collections: ${collectionLabel}`);
+    logger.info("│");
+  }
+};
+
+/**
+ * Print state information
+ */
+const printStateInfo = (): void => {
+  const stateManager = getStateManager();
+  const { channelCount, totalTokens } = stateManager.getStateInfo();
+
+  logger.info("│");
+  logger.info("├─ 💾 STATE");
+  logger.info("│");
+  logger.info(`│  📊  Channels tracked: ${channelCount}`);
+  logger.info(`│  🎲  Recent tokens: ${totalTokens}`);
 };
 
 /**
@@ -559,6 +571,13 @@ const printConfig = (): void => {
     printCollectionConfig(c);
   }
 
+  // Print random intervals config
+  printRandomIntervalsConfig();
+
+  // Print state info
+  printStateInfo();
+
+  logger.info("│");
   logger.info("└─");
   logger.info("");
 };
@@ -572,15 +591,15 @@ async function main(): Promise<void> {
   // Initialize collections from environment
   initCollections();
 
-  // Print configuration
-  printConfig();
-
   // Fetch slugs for all collections
   await initCollectionSlugs();
 
   // Load persisted state
   const stateManager = getStateManager();
   await stateManager.load();
+
+  // Print configuration (after state is loaded)
+  printConfig();
 
   // Create Discord client
   log.debug("Creating Discord client");
@@ -626,16 +645,16 @@ export const opensea = {
   api: "https://api.opensea.io/api/v2/",
   getAccount: urls.account,
   getNFT: (tokenId: number) => {
-    const collections = getCollections();
-    const defaultCollection = collections.find((c) => c.prefix === "");
+    const allCollections = getCollections();
+    const defaultCollection = allCollections.find((c) => c.prefix === "");
     if (!defaultCollection) {
       return "";
     }
     return urls.nft(defaultCollection, tokenId);
   },
   getEvents: (tokenId: number) => {
-    const collections = getCollections();
-    const defaultCollection = collections.find((c) => c.prefix === "");
+    const allCollections = getCollections();
+    const defaultCollection = allCollections.find((c) => c.prefix === "");
     if (!defaultCollection) {
       return "";
     }

@@ -217,18 +217,6 @@ COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereu
 | `artifacts#random` | Fetch a random Artifact |
 | `artifacts#?` | Fetch a random Artifact |
 
-### Console Output Example
-
-```
-------------------------------------------------------------
-Logged in as GlyphBot#8486!
-Listening for 2 collections…
-  • GlyphBots: #1234, #random
-  • GlyphBots Artifacts: artifacts#1234, artifacts#random
-Random posting: GlyphBots, GlyphBots Artifacts (rotating) to #🤖random-bots every 30 minutes
-------------------------------------------------------------
-```
-
 ### Provided Metadata Fields
 
 - Owner
@@ -244,25 +232,6 @@ yarn start
 
 # Development mode (with hot reload)
 yarn start:dev
-```
-
-Example console output:
-
-```
-------------------------------------------------------------
-Logged in as GlyphBot#8486!
-Listening for messages…
-------------------------------------------------------------
-Message from ryanio in #🤖random-bots:
-> #random
-Fetching GlyphBots #4217…
-Replied with #4217
-------------------------------------------------------------
-Message from alice in #🤖random-bots:
-> artifacts#?
-Fetching GlyphBots Artifacts #892…
-Replied with artifacts#892
-------------------------------------------------------------
 ```
 
 ## Development
@@ -290,15 +259,19 @@ yarn lint
 
 ```
 src/
-├── index.ts          # Main entry point and Discord bot
-├── collection.ts     # Collection configuration and parsing
-├── constants.ts      # Application constants
-├── logger.ts         # Logging utilities
-├── lru-cache.ts      # Caching implementation
-├── opensea.ts        # OpenSea API integration
-├── state.ts          # Persistent state management
-├── types.ts          # TypeScript type definitions
-└── utils.ts          # General utilities
+├── index.ts              # Main entry point and Discord bot
+├── api/
+│   └── opensea.ts        # OpenSea API integration
+├── config/
+│   ├── collection.ts     # Collection configuration and parsing
+│   └── constants.ts      # Application constants
+├── lib/
+│   ├── logger.ts         # Logging utilities
+│   ├── lru-cache.ts      # Caching implementation
+│   ├── types.ts          # TypeScript type definitions
+│   └── utils.ts          # General utilities
+└── state/
+    └── state.ts          # Persistent state management
 ```
 
 ## State Persistence
