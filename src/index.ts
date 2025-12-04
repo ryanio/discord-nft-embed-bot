@@ -470,14 +470,128 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
 };
 
 /**
+ * Print startup banner with ASCII art
+ */
+const printBanner = (): void => {
+  const banner = `
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                                                                           ║
+║   ███╗   ██╗███████╗████████╗    ███████╗███╗   ███╗██████╗ ███████╗██████╗║
+║   ████╗  ██║██╔════╝╚══██╔══╝    ██╔════╝████╗ ████║██╔══██╗██╔════╝██╔══██║
+║   ██╔██╗ ██║█████╗     ██║       █████╗  ██╔████╔██║██████╔╝█████╗  ██║  ██║
+║   ██║╚██╗██║██╔══╝     ██║       ██╔══╝  ██║╚██╔╝██║██╔══██╗██╔══╝  ██║  ██║
+║   ██║ ╚████║██║        ██║       ███████╗██║ ╚═╝ ██║██████╔╝███████╗██████╔║
+║   ╚═╝  ╚═══╝╚═╝        ╚═╝       ╚══════╝╚═╝     ╚═╝╚═════╝ ╚══════╝╚═════╝║
+║                                                                           ║
+║                  Discord NFT Embed Bot - Token Lookup                     ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝`;
+
+  for (const line of banner.split("\n")) {
+    logger.info(line);
+  }
+};
+
+/**
+ * Get human-readable label for collection option in random intervals
+ */
+const getCollectionLabel = (collectionOption: string | undefined): string => {
+  if (!collectionOption) {
+    return "default collection";
+  }
+  if (collectionOption === "*") {
+    return "all collections";
+  }
+  return collectionOption.replace(/\+/g, ", ");
+};
+
+/**
+ * Print collection configuration
+ */
+const printCollectionConfig = (c: CollectionConfig): void => {
+  const prefix = c.prefix ? `${c.prefix}#` : "#";
+  const chain = c.chain ?? "ethereum";
+  const tokenRange =
+    c.maxTokenId !== undefined ? `0-${c.maxTokenId}` : "unlimited";
+
+  logger.info(`│  🏷️   ${c.name}`);
+  logger.info(`│     ├─ Address: ${c.address}`);
+  logger.info(`│     ├─ Chain: ${chain}`);
+  logger.info(`│     ├─ Syntax: ${prefix}1234, ${prefix}random`);
+  logger.info(`│     └─ Token Range: ${tokenRange}`);
+  logger.info("│");
+};
+
+/**
+ * Print random interval configuration
+ */
+const printRandomIntervalConfig = (): void => {
+  if (!RANDOM_INTERVALS) {
+    return;
+  }
+
+  logger.info("├─ ⏱️  RANDOM INTERVALS");
+  logger.info("│");
+
+  for (const interval of RANDOM_INTERVALS.split(",")) {
+    const [channelId, configStr] = interval.split("=");
+    const [minutesStr, collectionOption] = (configStr ?? "").split(":");
+    const minutes = Number(minutesStr);
+
+    if (!channelId || Number.isNaN(minutes) || minutes <= 0) {
+      continue;
+    }
+
+    const collectionLabel = getCollectionLabel(collectionOption);
+
+    logger.info(`│  📢  Channel ${channelId}`);
+    logger.info(`│     ├─ Interval: ${minutes} minute(s)`);
+    logger.info(`│     └─ Collections: ${collectionLabel}`);
+    logger.info("│");
+  }
+};
+
+/**
+ * Print configuration summary
+ */
+const printConfig = (): void => {
+  const collections = getCollections();
+  const { OPENSEA_API_KEY, LOG_LEVEL } = process.env;
+
+  logger.info("");
+  logger.info("┌─ 📋 CONFIGURATION");
+  logger.info("│");
+
+  // API Status
+  const apiStatus = OPENSEA_API_KEY ? "✅ Configured" : "❌ Missing";
+  logger.info(`│  🔑  OpenSea API: ${apiStatus}`);
+  logger.info(`│  📝  Log Level: ${LOG_LEVEL ?? "info"}`);
+
+  logger.info("│");
+  logger.info("├─ 📦 COLLECTIONS");
+  logger.info("│");
+
+  for (const c of collections) {
+    printCollectionConfig(c);
+  }
+
+  printRandomIntervalConfig();
+
+  logger.info("└─");
+  logger.info("");
+};
+
+/**
  * Main entry point
  */
 async function main(): Promise<void> {
-  logger.info(SEPARATOR);
-  logger.info("Starting discord-nft-embed-bot");
+  printBanner();
 
   // Initialize collections from environment
   initCollections();
+
+  // Print configuration
+  printConfig();
 
   // Fetch slugs for all collections
   await initCollectionSlugs();
@@ -499,18 +613,8 @@ async function main(): Promise<void> {
 
   client.on("ready", async () => {
     logger.info(SEPARATOR);
-    logger.info(`Logged in as ${client.user?.tag}!`);
-
-    const collections = getCollections();
-    logger.info(
-      `Listening for ${collections.length} ${pluralize(collections.length, "collection")}…`
-    );
-
-    for (const c of collections) {
-      const prefix = c.prefix ? `${c.prefix}#` : "#";
-      logger.info(`  • ${c.name}: ${prefix}1234, ${prefix}random`);
-    }
-
+    logger.info(`🤖 Logged in as ${client.user?.tag}`);
+    logger.info("👂 Listening for messages...");
     logger.info(SEPARATOR);
     await setupRandomIntervals(client);
   });
