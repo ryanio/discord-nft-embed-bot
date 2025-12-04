@@ -396,7 +396,10 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
 
   const stateManager = getStateManager();
 
-  log.info("Setting up random intervals");
+  // Print header for random intervals config
+  logger.info("");
+  logger.info("┌─ ⏱️  RANDOM INTERVALS");
+  logger.info("│");
 
   for (const interval of RANDOM_INTERVALS.split(",")) {
     const [channelId, configStr] = interval.split("=");
@@ -416,6 +419,13 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
 
     const channel = await client.channels.fetch(channelId);
     const chanName = getChannelName(channel);
+    const collectionLabel = getCollectionLabel(collectionOption);
+
+    // Print config for this interval
+    logger.info(`│  📢  Channel #${chanName}`);
+    logger.info(`│     ├─ Interval: ${minutes} minute(s)`);
+    logger.info(`│     └─ Collections: ${collectionLabel}`);
+    logger.info("│");
 
     // Log what we're setting up
     const collectionNames = targetCollections.map((c) => c.name).join(", ");
@@ -423,7 +433,6 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
     log.info(
       `Random posting: ${collectionNames}${rotateLabel} to #${chanName} every ${pluralize(minutes, "minute")}`
     );
-    logger.info(SEPARATOR);
 
     setInterval(
       async () => {
@@ -467,6 +476,9 @@ const setupRandomIntervals = async (client: Client): Promise<void> => {
       minutes * SECONDS_PER_MINUTE * ONE_SECOND_MS
     );
   }
+
+  logger.info("└─");
+  logger.info("");
 };
 
 /**
@@ -523,35 +535,6 @@ const printCollectionConfig = (c: CollectionConfig): void => {
 };
 
 /**
- * Print random interval configuration
- */
-const printRandomIntervalConfig = (): void => {
-  if (!RANDOM_INTERVALS) {
-    return;
-  }
-
-  logger.info("├─ ⏱️  RANDOM INTERVALS");
-  logger.info("│");
-
-  for (const interval of RANDOM_INTERVALS.split(",")) {
-    const [channelId, configStr] = interval.split("=");
-    const [minutesStr, collectionOption] = (configStr ?? "").split(":");
-    const minutes = Number(minutesStr);
-
-    if (!channelId || Number.isNaN(minutes) || minutes <= 0) {
-      continue;
-    }
-
-    const collectionLabel = getCollectionLabel(collectionOption);
-
-    logger.info(`│  📢  Channel ${channelId}`);
-    logger.info(`│     ├─ Interval: ${minutes} minute(s)`);
-    logger.info(`│     └─ Collections: ${collectionLabel}`);
-    logger.info("│");
-  }
-};
-
-/**
  * Print configuration summary
  */
 const printConfig = (): void => {
@@ -574,8 +557,6 @@ const printConfig = (): void => {
   for (const c of collections) {
     printCollectionConfig(c);
   }
-
-  printRandomIntervalConfig();
 
   logger.info("└─");
   logger.info("");
