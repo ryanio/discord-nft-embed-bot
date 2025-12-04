@@ -143,8 +143,8 @@ RANDOM_INTERVALS=123456789=15:artifacts
 # Rotate between all collections every 20 min
 RANDOM_INTERVALS=123456789=20:*
 
-# Rotate between default and artifacts every 30 min
-RANDOM_INTERVALS=123456789=30:default+artifacts
+# Rotate between bots and artifacts every 30 min
+RANDOM_INTERVALS=123456789=30:bots+artifacts
 
 # Multiple channels with different configs
 RANDOM_INTERVALS=123456789=30,987654321=15:artifacts,111222333=20:*

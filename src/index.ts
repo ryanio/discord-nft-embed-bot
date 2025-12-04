@@ -20,7 +20,6 @@ import {
 } from "./api/opensea";
 import {
   getCollections,
-  getDefaultCollection,
   getSlugForCollection,
   initCollectionSlugs,
   initCollections,
@@ -328,12 +327,7 @@ const parseRandomCollections = (
   const result: CollectionConfig[] = [];
 
   for (const prefix of prefixes) {
-    // "default" keyword means the default collection (empty prefix or first collection)
-    const collection =
-      prefix === "default"
-        ? getDefaultCollection()
-        : allCollections.find((c) => c.prefix === prefix);
-
+    const collection = allCollections.find((c) => c.prefix === prefix);
     if (collection) {
       result.push(collection);
     } else {
