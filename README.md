@@ -7,6 +7,7 @@ A TypeScript [discord.js](https://discord.js.org/) bot that listens to messages 
 ## Features
 
 - 🔍 **Message parsing** for `#1234`, `#random`, `#rand`, or `#?` syntax
+- 👤 **Random by username** with `#username` or `prefix#username` syntax
 - 📊 **Rich embeds** with NFT images and metadata (owner, last sale, listing, best offer)
 - ⏰ **Scheduled random posts** to specified channels at intervals
 - 🎯 **Multi-collection support** with custom prefix triggers
@@ -216,9 +217,30 @@ COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereu
 | `#random` | Fetch a random GlyphBot |
 | `#rand` | Fetch a random GlyphBot |
 | `#?` | Fetch a random GlyphBot |
+| `#username` | Fetch a random NFT from a user's collection |
 | `artifacts#1234` | Fetch GlyphBots Artifacts #1234 |
 | `artifacts#random` | Fetch a random Artifact |
 | `artifacts#?` | Fetch a random Artifact |
+| `artifacts#username` | Fetch a random Artifact from a user's collection |
+
+### Random by Username
+
+You can fetch a random NFT from an OpenSea user's collection using the `#username` syntax:
+
+```
+#codincowboy      → Random NFT from @codincowboy's collection (from default collection)
+artifacts#ralx_z  → Random Artifact from @ralx_z's collection
+```
+
+**How it works:**
+1. Resolves the OpenSea username to a wallet address
+2. Fetches NFTs owned by that address (optionally filtered by collection)
+3. Picks a random NFT and displays it
+
+**Username rules:**
+- Must start with a letter (to distinguish from token IDs)
+- 3-15 characters long
+- Can contain letters, numbers, and underscores
 
 ### Provided Metadata Fields
 

@@ -6,6 +6,8 @@ import {
 import { createLogger, isDebugEnabled } from "../lib/logger";
 import { LRUCache } from "../lib/lru-cache";
 import type {
+  AccountNFT,
+  AccountNFTsResponse,
   BestListing,
   BestOffer,
   CollectionConfig,
@@ -123,6 +125,15 @@ export const urls = {
 
   events: (collection: CollectionConfig, tokenId: number) =>
     `${OPENSEA_API_BASE}/events/chain/${collection.chain}/contract/${collection.address}/nfts/${tokenId}`,
+
+  accountNFTs: (chain: string, address: string, collectionSlug?: string) => {
+    const base = `${OPENSEA_API_BASE}/chain/${chain}/account/${address}/nfts`;
+    const params = new URLSearchParams({ limit: "50" });
+    if (collectionSlug) {
+      params.set("collection", collectionSlug);
+    }
+    return `${base}?${params.toString()}`;
+  },
 };
 
 /**
@@ -277,6 +288,107 @@ const shortAddress = (addr: string): string => {
   const SUFFIX_START = 37;
   const SUFFIX_END = 42;
   return `${addr.slice(0, PREFIX_LEN)}…${addr.slice(SUFFIX_START, SUFFIX_END)}`;
+};
+
+/**
+ * Fetch account info by username and return the address
+ * Returns undefined if the username is not found
+ */
+export const fetchAccountAddress = async (
+  username: string,
+  userLog: Log
+): Promise<string | undefined> => {
+  log.debug(`Resolving username to address: ${username}`);
+
+  const account = await openseaGet<OpenSeaAccount & { address?: string }>(
+    urls.account(username),
+    userLog
+  );
+
+  if (account?.address) {
+    log.debug(`Resolved ${username} to address: ${account.address}`);
+    return account.address;
+  }
+
+  log.warn(`Username not found: ${username}`);
+};
+
+/**
+ * Fetch NFTs owned by an address, optionally filtered by collection slug
+ *
+ * @param address - The wallet address (not username)
+ * @param chain - The blockchain network (e.g., "ethereum")
+ * @param userLog - Log array for user-facing messages
+ * @param collectionSlug - Optional collection slug to filter results
+ */
+export const fetchAccountNFTs = async (
+  address: string,
+  chain: string,
+  userLog: Log,
+  collectionSlug?: string
+): Promise<AccountNFT[]> => {
+  log.debug(
+    `Fetching NFTs for ${address}${collectionSlug ? ` in ${collectionSlug}` : ""}`
+  );
+
+  const url = urls.accountNFTs(chain, address, collectionSlug);
+  const result = await openseaGet<AccountNFTsResponse>(url, userLog);
+
+  const nfts = result?.nfts ?? [];
+  log.debug(`Found ${nfts.length} NFTs for ${address}`);
+
+  return nfts;
+};
+
+/**
+ * Get a random NFT from a user's collection
+ *
+ * @param username - OpenSea username
+ * @param chain - Blockchain network
+ * @param userLog - Log array for user-facing messages
+ * @param collectionSlug - Optional collection slug to filter results
+ * @returns A random NFT and its token ID, or undefined if none found
+ */
+export const fetchRandomUserNFT = async (
+  username: string,
+  chain: string,
+  userLog: Log,
+  collectionSlug?: string
+): Promise<{ nft: AccountNFT; tokenId: number } | undefined> => {
+  log.info(
+    `Fetching random NFT for ${username}${collectionSlug ? ` from ${collectionSlug}` : ""}`
+  );
+  userLog.push(`Looking up NFTs owned by @${username}…`);
+
+  // First resolve username to address
+  const address = await fetchAccountAddress(username, userLog);
+  if (!address) {
+    userLog.push(`User @${username} not found`);
+    return;
+  }
+
+  // Fetch their NFTs
+  const nfts = await fetchAccountNFTs(address, chain, userLog, collectionSlug);
+  if (nfts.length === 0) {
+    userLog.push(
+      `No NFTs found for @${username}${collectionSlug ? ` in collection ${collectionSlug}` : ""}`
+    );
+    return;
+  }
+
+  // Pick a random one
+  const randomIndex = Math.floor(Math.random() * nfts.length);
+  const nft = nfts.at(randomIndex);
+  if (!nft) {
+    return;
+  }
+
+  const tokenId = Number(nft.identifier);
+  log.info(
+    `Selected random NFT: ${nft.name ?? `#${tokenId}`} for @${username}`
+  );
+
+  return { nft, tokenId };
 };
 
 /** Export GET_OPTS for testing */

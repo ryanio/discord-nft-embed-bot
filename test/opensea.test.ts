@@ -9,6 +9,7 @@ const contractFixture = require("./fixtures/opensea/get-contract.json");
 const eventsFixture = require("./fixtures/opensea/get-events-sale.json");
 const bestOfferFixture = require("./fixtures/opensea/get-best-offer-by-nft.json");
 const bestListingFixture = require("./fixtures/opensea/get-best-listing-by-nft.json");
+const accountNFTsFixture = require("./fixtures/opensea/get-nfts-by-account.json");
 
 // GlyphBots collection config (matching real contract)
 const glyphbotsCollection: CollectionConfig = {
@@ -299,6 +300,149 @@ describe("opensea", () => {
       );
 
       expect(username).toContain("0x12345");
+    });
+  });
+
+  describe("urls.accountNFTs", () => {
+    it("builds account NFTs URL without collection filter", () => {
+      const url = urls.accountNFTs(
+        "ethereum",
+        "0x00a839de7922491683f547a67795204763ff8237"
+      );
+      expect(url).toContain("/chain/ethereum/account/");
+      expect(url).toContain("0x00a839de7922491683f547a67795204763ff8237");
+      expect(url).toContain("nfts");
+      expect(url).toContain("limit=50");
+      expect(url).not.toContain("collection=");
+    });
+
+    it("builds account NFTs URL with collection filter", () => {
+      const url = urls.accountNFTs(
+        "ethereum",
+        "0x00a839de7922491683f547a67795204763ff8237",
+        "glyphbots"
+      );
+      expect(url).toContain("collection=glyphbots");
+    });
+  });
+
+  describe("fetchAccountAddress", () => {
+    beforeEach(() => {
+      jest.resetModules();
+    });
+
+    it("returns address for valid username", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce(JSON.stringify(accountFixture));
+
+      const { fetchAccountAddress } = require("../src/api/opensea");
+      const address = await fetchAccountAddress("ralx_z", log);
+
+      expect(address).toBe("0x00a839de7922491683f547a67795204763ff8237");
+    });
+
+    it("returns undefined for invalid username", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce("Not found", { status: 404 });
+
+      const { fetchAccountAddress } = require("../src/api/opensea");
+      const address = await fetchAccountAddress("nonexistent_user_12345", log);
+
+      expect(address).toBeUndefined();
+    });
+  });
+
+  describe("fetchAccountNFTs", () => {
+    beforeEach(() => {
+      jest.resetModules();
+    });
+
+    it("returns NFTs for valid address", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce(JSON.stringify(accountNFTsFixture));
+
+      const { fetchAccountNFTs } = require("../src/api/opensea");
+      const nfts = await fetchAccountNFTs(
+        "0x00a839de7922491683f547a67795204763ff8237",
+        "ethereum",
+        log,
+        "glyphbots"
+      );
+
+      expect(nfts.length).toBe(10);
+      expect(nfts.at(0).collection).toBe("glyphbots");
+      expect(nfts.at(0).identifier).toBe("1751");
+    });
+
+    it("returns empty array on error", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce("Error", { status: 500 });
+
+      const { fetchAccountNFTs } = require("../src/api/opensea");
+      const nfts = await fetchAccountNFTs(
+        "0x1234567890abcdef1234567890abcdef12345678",
+        "ethereum",
+        log
+      );
+
+      expect(nfts).toEqual([]);
+    });
+  });
+
+  describe("fetchRandomUserNFT", () => {
+    beforeEach(() => {
+      jest.resetModules();
+    });
+
+    it("returns a random NFT for valid username", async () => {
+      const log: Log = [];
+      // First call resolves username to address
+      fetchMock.mockResponseOnce(JSON.stringify(accountFixture));
+      // Second call fetches NFTs
+      fetchMock.mockResponseOnce(JSON.stringify(accountNFTsFixture));
+
+      const { fetchRandomUserNFT } = require("../src/api/opensea");
+      const result = await fetchRandomUserNFT(
+        "ralx_z",
+        "ethereum",
+        log,
+        "glyphbots"
+      );
+
+      expect(result).toBeDefined();
+      expect(result.nft).toBeDefined();
+      expect(result.tokenId).toBeGreaterThan(0);
+      expect(result.nft.collection).toBe("glyphbots");
+    });
+
+    it("returns undefined when user not found", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce("Not found", { status: 404 });
+
+      const { fetchRandomUserNFT } = require("../src/api/opensea");
+      const result = await fetchRandomUserNFT(
+        "nonexistent_user_12345",
+        "ethereum",
+        log
+      );
+
+      expect(result).toBeUndefined();
+    });
+
+    it("returns undefined when user has no NFTs", async () => {
+      const log: Log = [];
+      fetchMock.mockResponseOnce(JSON.stringify(accountFixture));
+      fetchMock.mockResponseOnce(JSON.stringify({ nfts: [], next: null }));
+
+      const { fetchRandomUserNFT } = require("../src/api/opensea");
+      const result = await fetchRandomUserNFT(
+        "ralx_z",
+        "ethereum",
+        log,
+        "glyphbots"
+      );
+
+      expect(result).toBeUndefined();
     });
   });
 });

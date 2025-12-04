@@ -14,6 +14,7 @@ import {
   fetchBestOffer,
   fetchLastSale,
   fetchNFT,
+  fetchRandomUserNFT,
   GET_OPTS,
   getUsername,
   NFTNotFoundError,
@@ -26,6 +27,7 @@ import {
   initCollections,
   isValidTokenId,
   parseMessageMatches,
+  parseUsernameMatches,
   randomTokenId,
 } from "./config/collection";
 import {
@@ -36,10 +38,15 @@ import {
 } from "./config/constants";
 import { logger } from "./lib/logger";
 import type {
+  BestListing,
+  BestOffer,
   CollectionConfig,
   EmbedResult,
+  LastSale,
   Log,
+  NFT,
   TokenMatch,
+  UsernameMatch,
 } from "./lib/types";
 import { formatAmount, formatShortDate, getHighResImage } from "./lib/utils";
 import { getStateManager } from "./state/state";
@@ -53,6 +60,102 @@ const MAX_RANDOM_ATTEMPTS = 10;
 
 /** Max retries when a random NFT doesn't exist */
 const MAX_NFT_FETCH_RETRIES = 3;
+
+type EmbedField = { name: string; value: string; inline: boolean };
+
+/**
+ * Add owner field to embed fields
+ */
+const addOwnerField = async (
+  fields: EmbedField[],
+  nft: NFT,
+  userLog: Log
+): Promise<void> => {
+  const owner = nft.owners?.at(0);
+  if (!owner) {
+    return;
+  }
+  const name = await getUsername(owner.address, userLog);
+  fields.push({ name: "Owner", value: name, inline: true });
+  log.debug(`Owner: ${name}`);
+};
+
+/**
+ * Add last sale field to embed fields
+ */
+const addLastSaleField = (
+  fields: EmbedField[],
+  lastSale: LastSale | undefined
+): void => {
+  if (!lastSale) {
+    return;
+  }
+  const { quantity, decimals, symbol } = lastSale.payment;
+  const price = formatAmount(quantity, decimals, symbol);
+  const date = new Date(lastSale.closing_date * ONE_SECOND_MS);
+  const formattedDate = formatShortDate(date);
+  fields.push({
+    name: "Last Sale",
+    value: `${price} (${formattedDate})`,
+    inline: true,
+  });
+  log.debug(`Last sale: ${price}`);
+};
+
+/**
+ * Add listing field to embed fields
+ */
+const addListingField = (
+  fields: EmbedField[],
+  bestListing: BestListing | undefined
+): void => {
+  if (!bestListing?.price?.current) {
+    return;
+  }
+  const { value, decimals, currency } = bestListing.price.current;
+  const price = formatAmount(value, decimals, currency);
+  fields.push({ name: "Listed For", value: price, inline: true });
+  log.debug(`Listed for: ${price}`);
+};
+
+/**
+ * Add best offer field to embed fields (skip collection-wide offers)
+ */
+const addOfferField = (
+  fields: EmbedField[],
+  bestOffer: BestOffer | undefined
+): void => {
+  if (!bestOffer?.price || bestOffer.criteria?.collection) {
+    return;
+  }
+  const { value, decimals, currency } = bestOffer.price;
+  const price = formatAmount(value, decimals, currency);
+  fields.push({ name: "Best Offer", value: price, inline: true });
+  log.debug(`Best offer: ${price}`);
+};
+
+/**
+ * Add editions field for ERC1155 tokens
+ */
+const addEditionsField = (fields: EmbedField[], nft: NFT): void => {
+  // Only show editions for ERC1155 tokens
+  if (nft.token_standard !== "erc1155") {
+    return;
+  }
+
+  // Calculate total editions from all owners
+  const totalEditions =
+    nft.owners?.reduce((sum, owner) => sum + (owner.quantity ?? 0), 0) ?? 0;
+
+  if (totalEditions === 0) {
+    return;
+  }
+
+  // Format as "1/1" for singles or "×3" for multiples
+  const editionsDisplay = totalEditions === 1 ? "1/1" : `×${totalEditions}`;
+  fields.push({ name: "Editions", value: editionsDisplay, inline: true });
+  log.debug(`Editions: ${editionsDisplay}`);
+};
 
 /**
  * Build a Discord embed for a single NFT
@@ -78,7 +181,7 @@ const buildEmbed = async (
     return;
   }
 
-  const fields: { name: string; value: string; inline: boolean }[] = [];
+  const fields: EmbedField[] = [];
   const nft = await fetchNFT(collection, tokenId, userLog);
 
   // Fetch all metadata in parallel
@@ -89,56 +192,38 @@ const buildEmbed = async (
     fetchBestListing(slug, tokenId, userLog),
   ]);
 
-  // Owner field
-  const owners = nft.owners ?? [];
-  if (owners.length > 0) {
-    const owner = owners.at(0);
-    if (owner) {
-      const name = await getUsername(owner.address, userLog);
-      fields.push({ name: "Owner", value: name, inline: true });
-      log.debug(`Owner: ${name}`);
-    }
-  }
-
-  // Last sale field
-  if (lastSale) {
-    const { quantity, decimals, symbol } = lastSale.payment;
-    const price = formatAmount(quantity, decimals, symbol);
-    const date = new Date(lastSale.closing_date * ONE_SECOND_MS);
-    const formattedDate = formatShortDate(date);
-    fields.push({
-      name: "Last Sale",
-      value: `${price} (${formattedDate})`,
-      inline: true,
-    });
-    log.debug(`Last sale: ${price}`);
-  }
-
-  // Best listing field
-  if (bestListing?.price?.current) {
-    const { value, decimals, currency } = bestListing.price.current;
-    const price = formatAmount(value, decimals, currency);
-    fields.push({ name: "Listed For", value: price, inline: true });
-    log.debug(`Listed for: ${price}`);
-  }
-
-  // Best offer field (skip collection-wide offers)
-  if (bestOffer?.price && !bestOffer.criteria?.collection) {
-    const { value, decimals, currency } = bestOffer.price;
-    const price = formatAmount(value, decimals, currency);
-    fields.push({ name: "Best Offer", value: price, inline: true });
-    log.debug(`Best offer: ${price}`);
-  }
+  // Build fields
+  await addOwnerField(fields, nft, userLog);
+  addEditionsField(fields, nft);
+  addLastSaleField(fields, lastSale);
+  addListingField(fields, bestListing);
+  addOfferField(fields, bestOffer);
 
   // Build the embed
-  const description = (collection.customDescription ?? "").replace(
+  const customDesc = (collection.customDescription ?? "").replace(
     "{id}",
     tokenId.toString()
   );
 
+  // Title is just "CollectionName #123"
+  const title = `${collection.name} #${tokenId}`;
+
+  // NFT name as subtitle (first line of description)
+  let description = "";
+  if (nft.name) {
+    // Extract name portion after " - " if present (e.g., "GlyphBot #1 - Vector" → "Vector")
+    const namePart = nft.name.includes(" - ")
+      ? nft.name.split(" - ").slice(1).join(" - ")
+      : nft.name;
+    description = `**${namePart}**`;
+  }
+  if (customDesc) {
+    description = description ? `${description}\n${customDesc}` : customDesc;
+  }
+
   const embed = new EmbedBuilder()
     .setColor((collection.color ?? "#121212") as HexColorString)
-    .setTitle(`${collection.name} #${tokenId}`)
+    .setTitle(title)
     .setURL(nft.opensea_url)
     .setFields(fields);
 
@@ -193,6 +278,102 @@ const buildEmbedsForMatches = async (
 };
 
 /**
+ * Build embed for a username random request
+ */
+const buildEmbedForUsernameMatch = async (
+  match: UsernameMatch,
+  userLog: Log
+): Promise<EmbedBuilder | undefined> => {
+  const { username, collection } = match;
+
+  // Get collection slug if filtering by collection
+  let collectionSlug: string | undefined;
+  if (collection) {
+    collectionSlug = await getSlugForCollection(collection, userLog);
+  }
+
+  // Get the chain from collection or default to ethereum
+  const chain = collection?.chain ?? "ethereum";
+
+  // Fetch random NFT from user
+  const result = await fetchRandomUserNFT(
+    username,
+    chain,
+    userLog,
+    collectionSlug
+  );
+
+  if (!result) {
+    return;
+  }
+
+  const { nft, tokenId } = result;
+
+  // Find the matching collection config for this NFT
+  let nftCollection = collection;
+  if (!nftCollection) {
+    // Try to find collection by contract address
+    const allCollections = getCollections();
+    nftCollection = allCollections.find(
+      (c) => c.address.toLowerCase() === nft.contract.toLowerCase()
+    );
+  }
+
+  // If we have a collection config, use buildEmbed
+  if (nftCollection) {
+    return buildEmbed(nftCollection, tokenId, userLog);
+  }
+
+  // Otherwise build a basic embed from the NFT data
+  log.debug(`Building basic embed for ${nft.name ?? `#${tokenId}`}`);
+
+  const embed = new EmbedBuilder()
+    .setColor("#121212")
+    .setTitle(nft.name ?? `NFT #${tokenId}`)
+    .setURL(nft.opensea_url);
+
+  if (nft.description) {
+    embed.setDescription(nft.description);
+  }
+
+  if (nft.image_url) {
+    embed.setImage(nft.image_url);
+  }
+
+  return embed;
+};
+
+/**
+ * Build embeds for username matches
+ */
+const buildEmbedsForUsernameMatches = async (
+  matches: UsernameMatch[],
+  userLog: Log
+): Promise<EmbedResult> => {
+  const embeds: EmbedBuilder[] = [];
+  const parts: string[] = [];
+
+  log.debug(
+    `Building embeds for ${matches.length} username ${matches.length === 1 ? "match" : "matches"}`
+  );
+
+  for (const match of matches.slice(0, MAX_EMBEDS_PER_MESSAGE)) {
+    const embed = await buildEmbedForUsernameMatch(match, userLog);
+    if (embed) {
+      embeds.push(embed);
+      const prefix = match.collection?.prefix
+        ? `${match.collection.prefix}#`
+        : "#";
+      parts.push(`${prefix}${match.username}`);
+    }
+  }
+
+  const embedLog =
+    parts.length > 0 ? `Replied with random from ${parts.join(", ")}` : "";
+  return { embeds, embedLog };
+};
+
+/**
  * Get channel name for logging
  */
 const getChannelName = (channel: TextBasedChannel | null): string => {
@@ -241,9 +422,11 @@ const processMessage = async (message: Message): Promise<void> => {
   const startTime = Date.now();
 
   try {
-    const matches = parseMessageMatches(message.content);
+    // Parse both token matches and username matches
+    const tokenMatches = parseMessageMatches(message.content);
+    const usernameMatches = parseUsernameMatches(message.content);
 
-    if (matches.length === 0) {
+    if (tokenMatches.length === 0 && usernameMatches.length === 0) {
       return;
     }
 
@@ -256,14 +439,41 @@ const processMessage = async (message: Message): Promise<void> => {
       `Message from ${message.author.username} in #${channelDisplay}:\n> ${message.content}`
     );
 
-    const { embeds, embedLog } = await buildEmbedsForMatches(matches, userLog);
+    // Build embeds for both types of matches
+    const allEmbeds: EmbedBuilder[] = [];
+    const allLogs: string[] = [];
 
-    if (embeds.length > 0) {
-      await message.reply({ embeds });
-      userLog.push(embedLog);
+    if (tokenMatches.length > 0) {
+      const { embeds, embedLog } = await buildEmbedsForMatches(
+        tokenMatches,
+        userLog
+      );
+      allEmbeds.push(...embeds);
+      if (embedLog) {
+        allLogs.push(embedLog);
+      }
+    }
+
+    if (usernameMatches.length > 0) {
+      const { embeds, embedLog } = await buildEmbedsForUsernameMatches(
+        usernameMatches,
+        userLog
+      );
+      allEmbeds.push(...embeds);
+      if (embedLog) {
+        allLogs.push(embedLog);
+      }
+    }
+
+    if (allEmbeds.length > 0) {
+      await message.reply({
+        embeds: allEmbeds.slice(0, MAX_EMBEDS_PER_MESSAGE),
+      });
+      const combinedLog = allLogs.join("; ");
+      userLog.push(combinedLog);
 
       const duration = Date.now() - startTime;
-      log.info(`${embedLog} (${duration}ms)`);
+      log.info(`${combinedLog} (${duration}ms)`);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

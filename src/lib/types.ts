@@ -28,13 +28,18 @@ export type CollectionConfig = {
 /** OpenSea NFT owner */
 export type OpenSeaOwner = {
   address: string;
+  /** Quantity owned (for ERC1155 tokens) */
+  quantity?: number;
 };
 
 /** OpenSea NFT data */
 export type NFT = {
+  name?: string;
   owners?: OpenSeaOwner[];
   opensea_url: string;
   image_url?: string;
+  /** Token standard (erc721, erc1155) */
+  token_standard?: string;
 };
 
 /** OpenSea last sale event */
@@ -87,4 +92,30 @@ export type TokenMatch = {
 export type EmbedResult = {
   embeds: EmbedBuilder[];
   embedLog: string;
+};
+
+/** OpenSea NFT item from account NFTs endpoint */
+export type AccountNFT = {
+  identifier: string;
+  collection: string;
+  contract: string;
+  token_standard: string;
+  name?: string;
+  description?: string;
+  image_url?: string;
+  opensea_url: string;
+};
+
+/** Response from OpenSea account NFTs endpoint */
+export type AccountNFTsResponse = {
+  nfts: AccountNFT[];
+  next?: string;
+};
+
+/** Match for a username random request (e.g., #username or artifacts#username) */
+export type UsernameMatch = {
+  /** The collection to filter by (or undefined for all collections) */
+  collection?: CollectionConfig;
+  /** The OpenSea username to fetch NFTs from */
+  username: string;
 };

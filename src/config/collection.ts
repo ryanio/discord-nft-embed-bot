@@ -1,6 +1,11 @@
 import { fetchCollectionSlug } from "../api/opensea";
 import { createLogger, isDebugEnabled } from "../lib/logger";
-import type { CollectionConfig, Log, TokenMatch } from "../lib/types";
+import type {
+  CollectionConfig,
+  Log,
+  TokenMatch,
+  UsernameMatch,
+} from "../lib/types";
 import { DEFAULT_CHAIN, DEFAULT_EMBED_COLOR } from "./constants";
 
 const log = createLogger("Collection");
@@ -23,6 +28,9 @@ const collectionMap = new Map<string, CollectionConfig>();
 
 /** Map of collection address -> slug */
 const slugMap = new Map<string, string>();
+
+/** Username validation regex - alphanumeric/underscore, 3-15 chars, starts with letter */
+const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,14}$/;
 
 /**
  * Check if a string looks like an Ethereum address
@@ -368,4 +376,79 @@ export const getHelpText = (): string => {
   }
 
   return lines.join("\n");
+};
+
+/**
+ * Build regex pattern for matching username triggers
+ * Supports: #username, prefix#username
+ *
+ * Username pattern: alphanumeric, underscores, 3-15 chars (OpenSea username rules)
+ */
+const buildUsernameMatchRegex = (): RegExp => {
+  const prefixes = [...collectionMap.keys()].filter((p) => p !== "");
+  const prefixPattern = prefixes.length > 0 ? `(?:${prefixes.join("|")})?` : "";
+
+  // Match: optional prefix + # + username (alphanumeric/underscore, 3-15 chars, not starting with digit)
+  // Username must start with a letter to distinguish from token IDs
+  const pattern = `(${prefixPattern})#([a-zA-Z][a-zA-Z0-9_]{2,14})(?:\\s|\\n|\\W|$)`;
+
+  if (isDebugEnabled()) {
+    log.debug(`Username match regex pattern: ${pattern}`);
+  }
+
+  return new RegExp(pattern, "gi");
+};
+
+/**
+ * Check if a string looks like a username (not a number or keyword)
+ */
+const isUsername = (value: string): boolean => {
+  // Must start with a letter and be 3-15 chars
+  if (!USERNAME_REGEX.test(value)) {
+    return false;
+  }
+  // Must not be a reserved keyword
+  const reserved = ["random", "rand"];
+  return !reserved.includes(value.toLowerCase());
+};
+
+/**
+ * Parse message content and extract username matches for random by user
+ */
+export const parseUsernameMatches = (content: string): UsernameMatch[] => {
+  const matches: UsernameMatch[] = [];
+  const regex = buildUsernameMatchRegex();
+
+  let match: RegExpExecArray | null = regex.exec(content);
+  while (match !== null) {
+    const [_fullMatch, prefix = "", usernamePart] = match;
+
+    // Validate it's a username
+    if (!isUsername(usernamePart)) {
+      match = regex.exec(content);
+      continue;
+    }
+
+    const collection =
+      prefix !== "" ? getCollectionByPrefix(prefix) : getDefaultCollection();
+
+    log.debug(
+      `Matched username request: ${collection?.name ?? "any"} #${usernamePart}`
+    );
+
+    matches.push({
+      collection,
+      username: usernamePart,
+    });
+
+    match = regex.exec(content);
+  }
+
+  if (matches.length > 0) {
+    log.info(
+      `Found ${matches.length} username ${matches.length === 1 ? "match" : "matches"}: ${matches.map((m) => `${m.collection?.name ?? "any"}#${m.username}`).join(", ")}`
+    );
+  }
+
+  return matches;
 };

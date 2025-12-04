@@ -459,4 +459,110 @@ describe("collection", () => {
       expect(getByPrefix("Test")).toBeDefined();
     });
   });
+
+  describe("parseUsernameMatches", () => {
+    beforeEach(() => {
+      process.env.COLLECTIONS =
+        "0xabc:MainNFT:1:100,artifacts:0xdef:ArtifactsNFT:1:50";
+      const { initCollections: init } = jest.requireActual(
+        "../src/config/collection"
+      );
+      init();
+    });
+
+    it("returns empty array for non-matching content", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      expect(parse("hello world")).toEqual([]);
+    });
+
+    it("returns empty array for token IDs (numbers)", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      expect(parse("#1234")).toEqual([]);
+      expect(parse("#42")).toEqual([]);
+    });
+
+    it("returns empty array for reserved keywords", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      expect(parse("#random")).toEqual([]);
+      expect(parse("#rand")).toEqual([]);
+    });
+
+    it("matches simple username", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      const matches = parse("Show me #codincowboy");
+
+      expect(matches.length).toBe(1);
+      expect(matches.at(0).username).toBe("codincowboy");
+      expect(matches.at(0).collection.name).toBe("MainNFT");
+    });
+
+    it("matches username with underscore", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      const matches = parse("Check #cool_user_123");
+
+      expect(matches.length).toBe(1);
+      expect(matches.at(0).username).toBe("cool_user_123");
+    });
+
+    it("matches prefixed username", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      const matches = parse("artifacts#codincowboy");
+
+      expect(matches.length).toBe(1);
+      expect(matches.at(0).username).toBe("codincowboy");
+      expect(matches.at(0).collection.name).toBe("ArtifactsNFT");
+    });
+
+    it("matches multiple usernames", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      const matches = parse("Compare #user_one and #user_two");
+
+      expect(matches.length).toBe(2);
+      expect(matches.at(0).username).toBe("user_one");
+      expect(matches.at(1).username).toBe("user_two");
+    });
+
+    it("ignores usernames starting with numbers", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      // This would match #1user but that's actually a token ID so it shouldn't match
+      const matches = parse("#1user");
+
+      expect(matches.length).toBe(0);
+    });
+
+    it("ignores usernames that are too short", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      const matches = parse("#ab");
+
+      expect(matches.length).toBe(0);
+    });
+
+    it("handles case-insensitive prefix matching", () => {
+      const { parseUsernameMatches: parse } = jest.requireActual(
+        "../src/config/collection"
+      );
+      const matches = parse("ARTIFACTS#someuser");
+
+      expect(matches.length).toBe(1);
+      expect(matches.at(0).collection.name).toBe("ArtifactsNFT");
+    });
+  });
 });
