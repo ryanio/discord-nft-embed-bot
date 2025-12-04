@@ -225,8 +225,8 @@ COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereu
 Use `*` as the `maxId` to automatically fetch the collection's total supply from OpenSea:
 
 ```env
-# Total supply will be fetched from OpenSea on startup
-COLLECTIONS=0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:*:ethereum
+# Total supply will be fetched from OpenSea on startup (ERC-721 only)
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:*:ethereum
 ```
 
 **How it works:**
@@ -239,6 +239,14 @@ COLLECTIONS=0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:*:e
 - No need to manually update `maxId` when new tokens are minted
 - Random requests always work within the actual supply range
 - Explicit requests for new mints are handled gracefully
+
+**⚠️ ERC-1155 Limitation:**
+Dynamic supply (`*`) is **not supported for ERC-1155 collections**. OpenSea's `total_supply` for ERC-1155 represents the total number of editions (items × supply per item), not the number of unique token IDs. For ERC-1155 collections like GlyphBots Artifacts, you must specify an explicit `maxId`:
+
+```env
+# ERC-1155 collections require explicit maxId
+COLLECTIONS=artifact:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:150:ethereum
+```
 
 ### Supported Message Syntax
 

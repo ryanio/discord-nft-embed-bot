@@ -129,16 +129,47 @@ describe("opensea", () => {
   });
 
   describe("fetchTotalSupply", () => {
-    it("returns total supply from collection response", async () => {
+    it("returns total supply from collection response for ERC-721", async () => {
       const log: Log = [];
+      // First call: contract info (ERC-721)
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ contract_standard: "erc721", collection: "glyphbots" })
+      );
+      // Second call: collection info
       fetchMock.mockResponseOnce(JSON.stringify(collectionFixture));
 
       const {
         fetchTotalSupply: fetchSupply,
       } = require("../../src/api/opensea");
-      const supply = await fetchSupply("glyphbots", log);
+      const supply = await fetchSupply("glyphbots", glyphbotsCollection, log);
 
       expect(supply).toBe(10_735);
+    });
+
+    it("returns undefined for ERC-1155 collections", async () => {
+      const log: Log = [];
+      // Contract info returns ERC-1155
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          contract_standard: "erc1155",
+          collection: "glyphbots-artifacts",
+        })
+      );
+
+      const {
+        fetchTotalSupply: fetchSupply,
+      } = require("../../src/api/opensea");
+      const erc1155Collection = {
+        ...testCollection,
+        name: "ERC1155 Collection",
+      };
+      const supply = await fetchSupply(
+        "glyphbots-artifacts",
+        erc1155Collection,
+        log
+      );
+
+      expect(supply).toBeUndefined();
     });
 
     it("returns undefined on error", async () => {
@@ -148,19 +179,24 @@ describe("opensea", () => {
       const {
         fetchTotalSupply: fetchSupply,
       } = require("../../src/api/opensea");
-      const supply = await fetchSupply("invalid-slug", log);
+      const supply = await fetchSupply("invalid-slug", testCollection, log);
 
       expect(supply).toBeUndefined();
     });
 
     it("returns undefined when total_supply is missing", async () => {
       const log: Log = [];
+      // Contract info (ERC-721)
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ contract_standard: "erc721", collection: "test" })
+      );
+      // Collection info without total_supply
       fetchMock.mockResponseOnce(JSON.stringify({ collection: "test" }));
 
       const {
         fetchTotalSupply: fetchSupply,
       } = require("../../src/api/opensea");
-      const supply = await fetchSupply("test-slug", log);
+      const supply = await fetchSupply("test-slug", testCollection, log);
 
       expect(supply).toBeUndefined();
     });

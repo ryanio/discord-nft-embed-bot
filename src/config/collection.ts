@@ -340,10 +340,12 @@ export const initCollectionSlugs = async (): Promise<void> => {
 
     // Fetch total supply for collections with dynamic supply (maxTokenId = "*")
     if (collection.dynamicSupply) {
-      const totalSupply = await fetchTotalSupply(slug, userLog);
+      const totalSupply = await fetchTotalSupply(slug, collection, userLog);
       if (totalSupply === undefined) {
         throw new Error(
-          `Could not fetch total supply for collection: ${collection.name}`
+          `Could not fetch total supply for collection: ${collection.name}. ` +
+            "Dynamic supply (*) is not supported for ERC-1155 collections. " +
+            "Please specify an explicit maxTokenId."
         );
       }
       collection.maxTokenId = totalSupply;
@@ -419,7 +421,7 @@ export const checkDynamicTokenId = async (
     return false;
   }
 
-  const totalSupply = await fetchTotalSupply(slug, userLog);
+  const totalSupply = await fetchTotalSupply(slug, collection, userLog);
   if (totalSupply === undefined) {
     log.warn(`Failed to refresh total supply for ${collection.name}`);
     return false;
