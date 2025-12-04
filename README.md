@@ -67,8 +67,8 @@ LOG_LEVEL=info
 ### GlyphBots + Artifacts Example
 
 ```env
-# GlyphBots (default) + Artifacts (with "artifacts" prefix)
-COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88,artifacts:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:11111:ethereum:#ff6b35
+# GlyphBots (default) + Artifacts (with "artifact" prefix)
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88,artifact:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:11111:ethereum:#ff6b35
 OPENSEA_API_TOKEN=your_opensea_api_key
 DISCORD_TOKEN=your_discord_bot_token
 
@@ -79,8 +79,8 @@ RANDOM_INTERVALS=1234567890123456789=30:*
 With this config:
 - `#42` → GlyphBots #42 (Vector the Kind, etc.)
 - `#random` → Random GlyphBot
-- `artifacts#1` → GlyphBots Artifacts #1 (Vector the Kind: Quantum Infiltrator)
-- `artifacts#?` → Random Artifact
+- `artifact#1` → GlyphBots Artifacts #1 (Vector the Kind: Quantum Infiltrator)
+- `artifact#?` → Random Artifact
 
 Originally developed for [@dutchtide](https://twitter.com/dutchtide)'s [𝕄𝕚𝕕𝕟𝕚𝕘𝕙𝕥 夏季 𝔹𝕣𝕖𝕖𝕫𝕖](https://opensea.io/collection/midnightbreeze) collection.
 
@@ -139,13 +139,13 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=85056&
 RANDOM_INTERVALS=123456789=30
 
 # Post random Artifact every 15 min
-RANDOM_INTERVALS=123456789=15:artifacts
+RANDOM_INTERVALS=123456789=15:artifact
 
 # Rotate between all collections every 20 min
 RANDOM_INTERVALS=123456789=20:*
 
 # Rotate between bots and artifacts every 30 min
-RANDOM_INTERVALS=123456789=30:bots+artifacts
+RANDOM_INTERVALS=123456789=30:bot+artifact
 
 # Multiple channels with different configs
 RANDOM_INTERVALS=123456789=30,987654321=15:artifacts,111222333=20:*
@@ -184,6 +184,7 @@ COLLECTIONS=address:name:minId:maxId[:chain][:color][:imageUrl],prefix:address:n
 - `maxId` - Maximum token ID
 - `chain` - Blockchain (optional, defaults to `ethereum`)
 - `color` - Embed color hex (optional, defaults to `#121212`)
+- `customDescription` - Custom description template (optional, `{id}` replaced with token ID, supports markdown links)
 - `imageUrl` - Custom image URL template (optional, `{id}` replaced with token ID)
 
 **Additional collections:**
@@ -194,6 +195,7 @@ COLLECTIONS=address:name:minId:maxId[:chain][:color][:imageUrl],prefix:address:n
 - `maxId` - Maximum token ID
 - `chain` - Blockchain (optional, defaults to `ethereum`)
 - `color` - Embed color hex (optional, defaults to `#121212`)
+- `customDescription` - Custom description template (optional, `{id}` replaced with token ID, supports markdown links)
 - `imageUrl` - Custom image URL template (optional, `{id}` replaced with token ID)
 
 ### Example
@@ -203,10 +205,16 @@ COLLECTIONS=address:name:minId:maxId[:chain][:color][:imageUrl],prefix:address:n
 COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88
 
 # Multiple collections (GlyphBots default + Artifacts prefix)
-COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88,artifacts:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:11111:ethereum:#ff6b35
+COLLECTIONS=bot:0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88,artifacts:0x7136496aBFBAB3d17c34a3Cfc4CFbc68BfBCCbCc:GlyphBots Artifacts:1:11111:ethereum:#ff6b35t
 
 # With custom image URL (useful when Discord can't display SVGs)
 COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88:https://glyphbots.com/bots/pngs/{id}.png
+
+# With custom description containing a markdown link
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88:[View Bot](https://glyphbots.com/bot/{id})
+
+# With both custom description and image URL
+COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereum:#00ff88:[View Bot](https://glyphbots.com/bot/{id}):https://glyphbots.com/bots/pngs/{id}.png
 ```
 
 ### Supported Message Syntax
@@ -218,10 +226,10 @@ COLLECTIONS=0xb6C2c2d2999c1b532E089a7ad4Cb7f8C91cf5075:GlyphBots:1:11111:ethereu
 | `#rand` | Fetch a random GlyphBot |
 | `#?` | Fetch a random GlyphBot |
 | `#username` | Fetch a random NFT from a user's collection |
-| `artifacts#1234` | Fetch GlyphBots Artifacts #1234 |
-| `artifacts#random` | Fetch a random Artifact |
-| `artifacts#?` | Fetch a random Artifact |
-| `artifacts#username` | Fetch a random Artifact from a user's collection |
+| `artifact#1234` | Fetch GlyphBots Artifacts #1234 |
+| `artifact#random` | Fetch a random Artifact |
+| `artifact#?` | Fetch a random Artifact |
+| `artifact#username` | Fetch a random Artifact from a user's collection |
 
 ### Random by Username
 
@@ -229,7 +237,7 @@ You can fetch a random NFT from an OpenSea user's collection using the `#usernam
 
 ```
 #codincowboy      → Random NFT from @codincowboy's collection (from default collection)
-artifacts#ralx_z  → Random Artifact from @ralx_z's collection
+artifact#ralx_z  → Random Artifact from @ralx_z's collection
 ```
 
 **How it works:**

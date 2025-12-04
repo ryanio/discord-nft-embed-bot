@@ -1,11 +1,11 @@
 import { EmbedBuilder } from "discord.js";
 import fetchMock from "jest-fetch-mock";
-import { GET_OPTS, urls } from "../src/api/opensea";
-import type { CollectionConfig, Log } from "../src/lib/types";
+import { GET_OPTS, urls } from "../../src/api/opensea";
+import type { CollectionConfig, Log } from "../../src/lib/types";
 
 // GlyphBots fixtures from real OpenSea API responses
-const nftFixture = require("./fixtures/opensea/get-nft.json");
-const eventsFixture = require("./fixtures/opensea/get-events-sale.json");
+const nftFixture = require("../fixtures/opensea/get-nft.json");
+const eventsFixture = require("../fixtures/opensea/get-events-sale.json");
 
 // GlyphBots collection config (matching real contract)
 const glyphbotsCollection: CollectionConfig = {
@@ -141,35 +141,23 @@ describe("NFT name pattern extraction", () => {
     });
 
     it("returns full name when pattern does not match", () => {
-      // No hash/digits pattern
       expect(extractNftSubtitle("My Cool NFT")).toBe("My Cool NFT");
       expect(extractNftSubtitle("Just a name")).toBe("Just a name");
-
-      // Has dash but no #digits
       expect(extractNftSubtitle("NFT - Something")).toBe("NFT - Something");
-
-      // Has #digits but no dash after
       expect(extractNftSubtitle("GlyphBot #123")).toBe("GlyphBot #123");
       expect(extractNftSubtitle("Token #1 is cool")).toBe("Token #1 is cool");
     });
 
     it("handles edge cases with numbers and hashes", () => {
-      // Hash not followed by digits
       expect(extractNftSubtitle("NFT #abc - Title")).toBe("NFT #abc - Title");
-
-      // Multiple hashes - matches first valid pattern
       expect(extractNftSubtitle("NFT #1 - Title #2")).toBe("Title #2");
-
-      // Empty subtitle after pattern
       expect(extractNftSubtitle("GlyphBot #1 - ")).toBe("");
     });
 
     it("handles real-world NFT names from fixtures", () => {
-      // From get-nft.json fixture
       expect(extractNftSubtitle("GlyphBot #1 - Vector the Kind")).toBe(
         "Vector the Kind"
       );
-      // From get-events-sale.json fixture
       expect(extractNftSubtitle("GlyphBot #1533 - Fizzyprime")).toBe(
         "Fizzyprime"
       );
@@ -209,7 +197,7 @@ describe("NFT name pattern extraction", () => {
       expect(NFT_NAME_PATTERN.test("My Cool NFT")).toBe(false);
       expect(NFT_NAME_PATTERN.test("NFT - Something")).toBe(false);
       expect(NFT_NAME_PATTERN.test("GlyphBot #123")).toBe(false);
-      expect(NFT_NAME_PATTERN.test("#123 - Title")).toBe(false); // No name before #
+      expect(NFT_NAME_PATTERN.test("#123 - Title")).toBe(false);
     });
 
     it("requires whitespace before hash", () => {

@@ -3,7 +3,7 @@ export const ONE_SECOND_MS = 1000;
 export const SECONDS_PER_MINUTE = 60;
 
 /** Discord limits */
-export const MAX_EMBEDS_PER_MESSAGE = 5;
+export const MAX_EMBEDS_PER_MESSAGE = 6;
 
 /** Cache sizes */
 export const USERNAME_CACHE_CAPACITY = 100;
