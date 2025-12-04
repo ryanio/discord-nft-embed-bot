@@ -308,8 +308,8 @@ const getUniqueRandomToken = (
  * Parse random interval config to get target collections
  *
  * Format: CHANNEL_ID=minutes[:collection_option]
- * - No option: default collection only (first collection if no explicit default)
- * - `*`: rotate through all collections
+ * - No option: rotate through all collections
+ * - `*`: rotate through all collections (explicit)
  * - `prefix`: specific collection by prefix
  * - `prefix1+prefix2`: rotate through listed collections (use + since , is separator)
  */
@@ -318,14 +318,8 @@ const parseRandomCollections = (
 ): CollectionConfig[] => {
   const allCollections = getCollections();
 
-  if (!collectionOption) {
-    // No option = use default collection (consistent with getDefaultCollection behavior)
-    const defaultCollection = getDefaultCollection();
-    return defaultCollection ? [defaultCollection] : [];
-  }
-
-  if (collectionOption === "*") {
-    // All collections
+  // No option or "*" = rotate through all collections
+  if (!collectionOption || collectionOption === "*") {
     return allCollections;
   }
 

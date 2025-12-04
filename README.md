@@ -126,17 +126,15 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=85056&
 | `STATE_DIR` | Directory for state persistence | `.state` | `./data/state` |
 
 **RANDOM_INTERVALS Format:**
-- Single channel: `CHANNEL_ID=minutes` (uses default collection, or rotates all if no default)
+- Single channel: `CHANNEL_ID=minutes` (rotates through all collections)
 - Multiple channels: `CHANNEL_ID1=5,CHANNEL_ID2=10`
 - Specific collection: `CHANNEL_ID=minutes:prefix`
-- All collections (rotating): `CHANNEL_ID=minutes:*`
-- Multiple collections (rotating): `CHANNEL_ID=minutes:default+artifacts`
-
-> 💡 **Note:** The "default collection" is the one configured **without a prefix**. If all collections have prefixes, omitting the collection option will rotate through all collections.
+- All collections (rotating): `CHANNEL_ID=minutes:*` (explicit, same as no option)
+- Multiple collections (rotating): `CHANNEL_ID=minutes:prefix1+prefix2`
 
 **Examples:**
 ```env
-# Post random GlyphBot every 30 min (default collection)
+# Post random NFT every 30 min (rotates through all collections)
 RANDOM_INTERVALS=123456789=30
 
 # Post random Artifact every 15 min
