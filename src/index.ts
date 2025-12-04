@@ -539,14 +539,14 @@ const printCollectionConfig = (c: CollectionConfig): void => {
  */
 const printConfig = (): void => {
   const collections = getCollections();
-  const { OPENSEA_API_KEY, LOG_LEVEL } = process.env;
+  const { OPENSEA_API_TOKEN, LOG_LEVEL } = process.env;
 
   logger.info("");
   logger.info("┌─ 📋 CONFIGURATION");
   logger.info("│");
 
   // API Status
-  const apiStatus = OPENSEA_API_KEY ? "✅ Configured" : "❌ Missing";
+  const apiStatus = OPENSEA_API_TOKEN ? "✅ Configured" : "❌ Missing";
   logger.info(`│  🔑  OpenSea API: ${apiStatus}`);
   logger.info(`│  📝  Log Level: ${LOG_LEVEL ?? "info"}`);
 
