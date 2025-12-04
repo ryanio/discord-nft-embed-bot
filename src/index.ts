@@ -525,10 +525,47 @@ const printCollectionConfig = (c: CollectionConfig): void => {
 /**
  * Print random intervals configuration
  */
+/**
+ * Format a time ago string (e.g., "2 days ago", "3 hours ago", "5 minutes ago")
+ */
+const formatTimeAgo = (date: Date): string => {
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 0) {
+    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+  }
+  if (diffHours > 0) {
+    return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  }
+  if (diffMinutes > 0) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
+  }
+  return "just now";
+};
+
+/**
+ * Format a date as readable timestamp (e.g., "Dec 4, 2024 2:30 PM")
+ */
+const formatReadableTimestamp = (date: Date): string =>
+  date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
 const printRandomIntervalsConfig = (): void => {
   if (!RANDOM_INTERVALS) {
     return;
   }
+
+  const stateManager = getStateManager();
 
   logger.info("│");
   logger.info("├─ ⏱️  RANDOM INTERVALS");
@@ -544,10 +581,19 @@ const printRandomIntervalsConfig = (): void => {
     }
 
     const collectionLabel = getCollectionLabel(collectionOption);
+    const lastPost = stateManager.getLastRandomPost(channelId);
 
     logger.info(`│  📢  Channel ${channelId}`);
     logger.info(`│     ├─ Interval: ${minutes} minute(s)`);
-    logger.info(`│     └─ Collections: ${collectionLabel}`);
+    logger.info(`│     ├─ Collections: ${collectionLabel}`);
+
+    if (lastPost) {
+      const timeAgo = formatTimeAgo(lastPost);
+      const timestamp = formatReadableTimestamp(lastPost);
+      logger.info(`│     └─ Last post: ${timestamp} (${timeAgo})`);
+    } else {
+      logger.info("│     └─ Last post: never (will post on startup)");
+    }
     logger.info("│");
   }
 };
