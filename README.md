@@ -1,3 +1,13 @@
+> ## Retired
+>
+> This repo is no longer maintained and is no longer deployed anywhere. It was retired on 2026-07-26, when the DigitalOcean droplet that ran it was cancelled.
+>
+> Its replacement is the Cloudflare Worker in [ryanio/glyphbots-discord-bot](https://github.com/ryanio/glyphbots-discord-bot), under the `worker/` directory, live at `https://glyphbots-worker.ryan-2e8.workers.dev`.
+>
+> Everything this bot did carried over. The inline lookups (`b#123`, `a#123`, `#username`) run in the Worker now, restricted to two channels and rate limited, which this version never did. The scheduled random posts that `RANDOM_INTERVALS` controlled here are a six-hourly cron into `#gallery` there.
+>
+> The source below is kept as a record. The documentation that follows describes how the bot worked when it was running, not how anything is deployed today.
+
 # discord-nft-embed-bot
 
 ![Example bot reply](./example.png)
